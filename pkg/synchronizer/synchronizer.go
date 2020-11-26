@@ -59,6 +59,12 @@ func Sync(ctx context.Context, logger *log.Entry, msg google.PubSubMessage, name
 		notexist = true
 	}
 
+	secret, err := clientSet.CoreV1().Secrets(namespace).Get(ctx, msg.SecretName, metav1.GetOptions{})
+	if err == nil && !kubernetes.IsOwned(*secret){
+		msg.Ack()
+		return fmt.Errorf("secret exists in cluster, but is not managed by hunter2")
+	}
+
 	logger.Debugf("synchronizing k8s secret '%s'", msg.SecretName)
 	if notexist {
 		err = deleteSecret(ctx, msg.SecretName, namespace, clientSet)

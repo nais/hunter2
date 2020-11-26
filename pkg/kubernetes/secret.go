@@ -23,6 +23,11 @@ type SecretData struct {
 	SecretVersion  string
 }
 
+func IsOwned(secret corev1.Secret) bool {
+	labels := secret.GetLabels()
+	return labels != nil && labels[createdBy] == createdByValue
+}
+
 func OpaqueSecret(data SecretData) *corev1.Secret {
 	return &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{

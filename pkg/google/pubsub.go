@@ -26,12 +26,12 @@ func (in *PubSubClient) Consume(ctx context.Context) chan pubsub.Message {
 	go func(ctx context.Context, messages chan pubsub.Message) {
 		defer close(messages)
 		cctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
-		err := in.Receive(cctx, func (ctx context.Context, msg *pubsub.Message) {
+		err := in.Receive(cctx, func(ctx context.Context, msg *pubsub.Message) {
 			messages <- *msg
 		})
 		if err != nil {
-			cancel()
 			log.Errorf("pulling message from subscription: %v", err)
 		}
 	}(ctx, messages)

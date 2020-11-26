@@ -10,7 +10,7 @@ import (
 func NewClient(kubeconfigPath string) (*kubernetes.Clientset, error) {
 	kubeconfig, err := getK8sConfig(kubeconfigPath)
 	if err != nil {
-		log.Fatal("unable to initialize kubernetes config: %v", err)
+		log.Fatalf("unable to initialize kubernetes config: %v", err)
 	}
 
 	clientSet, err := kubernetes.NewForConfig(kubeconfig)

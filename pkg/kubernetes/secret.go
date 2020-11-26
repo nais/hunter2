@@ -1,22 +1,47 @@
 package kubernetes
 
 import (
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func OpaqueSecret(name, namespace string, payload map[string]string) *corev1.Secret {
+const createdBy = "nais.io/created-by"
+const createdByValue = "hunter2"
+
+const lastModifiedBy = "hunter2.nais.io/last-modified-by"
+const lastModified = "hunter2.nais.io/last-modified"
+const secretVersion = "hunter2.nais.io/secret-version"
+
+type SecretData struct {
+	Name           string
+	Namespace      string
+	Payload        map[string]string
+	LastModified   time.Time
+	LastModifiedBy string
+	SecretVersion  string
+}
+
+func OpaqueSecret(data SecretData) *corev1.Secret {
 	return &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    map[string]string{},
+			Name:      data.Name,
+			Namespace: data.Namespace,
+			Labels: map[string]string{
+				createdBy: createdByValue,
+			},
+			Annotations: map[string]string{
+				lastModified:   data.LastModified.Format(time.RFC3339),
+				lastModifiedBy: data.LastModifiedBy,
+				secretVersion:  data.SecretVersion,
+			},
 		},
-		StringData: payload,
+		StringData: data.Payload,
 		Type:       corev1.SecretTypeOpaque,
 	}
 }

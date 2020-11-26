@@ -16,10 +16,18 @@ import (
 
 const staticSecretDataKey = "secret"
 
-func createOrUpdateSecret(ctx context.Context, name, namespace string, payload []byte, clientSet kubernetes2.Interface) error {
-	secret := kubernetes.OpaqueSecret(name, namespace, map[string]string{
-		staticSecretDataKey: string(payload),
-	})
+func createOrUpdateSecret(ctx context.Context, namespace string, msg google.PubSubMessage, payload []byte, clientSet kubernetes2.Interface) error {
+	data := kubernetes.SecretData{
+		Name:           msg.SecretName,
+		Namespace:      namespace,
+		LastModified:   msg.LogMessage.Timestamp,
+		LastModifiedBy: msg.LogMessage.ProtoPayload.AuthenticationInfo.PrincipalEmail,
+		SecretVersion:  google.ParseSecretVersion(msg.LogMessage.ProtoPayload.ResourceName),
+		Payload: map[string]string{
+			staticSecretDataKey: string(payload),
+		},
+	}
+	secret := kubernetes.OpaqueSecret(data)
 	_, err := clientSet.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
 		_, err = clientSet.CoreV1().Secrets(namespace).Update(ctx, secret, metav1.UpdateOptions{})
@@ -55,7 +63,7 @@ func Sync(ctx context.Context, logger *log.Entry, msg google.PubSubMessage, name
 	if notexist {
 		err = deleteSecret(ctx, msg.SecretName, namespace, clientSet)
 	} else {
-		err = createOrUpdateSecret(ctx, msg.SecretName, namespace, payload, clientSet)
+		err = createOrUpdateSecret(ctx, namespace, msg, payload, clientSet)
 	}
 
 	if err != nil {

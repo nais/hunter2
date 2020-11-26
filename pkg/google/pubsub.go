@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/pubsub"
 	log "github.com/sirupsen/logrus"
@@ -16,15 +17,18 @@ type PubSubClient struct {
 
 type PubSubMessage struct {
 	SecretName string
+	LogMessage LogMessage
 	pubsub.Message
 }
 
 type LogMessage struct {
-	ProtoPayload ProtoPayload `json:"protoPayload"`
-}
-
-type ProtoPayload struct {
-	ResourceName string `json:"resourceName"`
+	Timestamp    time.Time `json:"timestamp"`
+	ProtoPayload struct {
+		ResourceName       string `json:"resourceName"`
+		AuthenticationInfo struct {
+			PrincipalEmail string `json:"principalEmail"`
+		} `json:"authenticationInfo"`
+	} `json:"protoPayload"`
 }
 
 func NewPubSubClient(ctx context.Context, projectID, subscriptionID string) (*PubSubClient, error) {
@@ -42,6 +46,14 @@ func ParseSecretName(resourceName string) (string, error) {
 		return "", fmt.Errorf("resource name does not contain a secret")
 	}
 	return tokens[3], nil
+}
+
+func ParseSecretVersion(resourceName string) string {
+	tokens := strings.Split(resourceName, "/")
+	if len(tokens) < 6 || tokens[0] != "projects" || tokens[2] != "secrets" {
+		return "1"
+	}
+	return tokens[5]
 }
 
 func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
@@ -65,7 +77,11 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 				log.Errorf("invalid message format: %s")
 				return
 			}
-			messages <- PubSubMessage{secretName, *msg}
+			messages <- PubSubMessage{
+				SecretName: secretName,
+				LogMessage: logMessage,
+				Message:    *msg,
+			}
 		})
 		if err != nil {
 			log.Errorf("pulling message from subscription: %v", err)

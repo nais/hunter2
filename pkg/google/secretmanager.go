@@ -1,9 +1,10 @@
 package google
 
 import (
-	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"context"
 	"fmt"
+
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 )
 
@@ -28,7 +29,7 @@ func (in *SecretManagerClient) GetSecretData(ctx context.Context, secretName str
 
 	result, err := in.AccessSecretVersion(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to access secret version: %v", err)
+		return nil, err
 	}
 	return result.Payload.Data, nil
 }

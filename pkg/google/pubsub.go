@@ -3,12 +3,27 @@ package google
 import (
 	"cloud.google.com/go/pubsub"
 	"context"
+	"encoding/json"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"strings"
 )
 
 type PubSubClient struct {
 	*pubsub.Subscription
+}
+
+type PubSubMessage struct {
+	SecretName string
+	pubsub.Message
+}
+
+type LogMessage struct {
+	ProtoPayload ProtoPayload `json:"protoPayload"`
+}
+
+type ProtoPayload struct {
+	ResourceName string `json:"resourceName"`
 }
 
 func NewPubSubClient(ctx context.Context, projectID, subscriptionID string) (*PubSubClient, error) {
@@ -20,16 +35,23 @@ func NewPubSubClient(ctx context.Context, projectID, subscriptionID string) (*Pu
 	return &PubSubClient{sub}, nil
 }
 
-func (in *PubSubClient) Consume(ctx context.Context) chan pubsub.Message {
-	messages := make(chan pubsub.Message)
+func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
+	messages := make(chan PubSubMessage)
 
-	go func(ctx context.Context, messages chan pubsub.Message) {
+	go func(ctx context.Context, messages chan PubSubMessage) {
 		defer close(messages)
 		cctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
 		err := in.Receive(cctx, func(ctx context.Context, msg *pubsub.Message) {
-			messages <- *msg
+			var logMessage LogMessage
+			err := json.Unmarshal(msg.Data, &logMessage)
+			if err != nil {
+				log.Warnf("failed to unmarshal message: %v", err)
+				return
+			}
+			secretName := strings.Split(logMessage.ProtoPayload.ResourceName, "/")
+			messages <- PubSubMessage{secretName[len(secretName)-3], *msg}
 		})
 		if err != nil {
 			log.Errorf("pulling message from subscription: %v", err)

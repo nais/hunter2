@@ -100,17 +100,16 @@ func main() {
 	for msg := range messages {
 		log.Debugf("got message: %s", msg.Data)
 
-		secretName := "yolo"
-		log.Debugf("fetching secret data for secret: %s", secretName)
-		payload, err := secretManagerClient.GetSecretData(ctx, secretName)
+		log.Debugf("fetching secret data for secret: %s", msg.SecretName)
+		payload, err := secretManagerClient.GetSecretData(ctx, msg.SecretName)
 		if err != nil {
 			log.Errorf("error while accessing secret manager secret: %v", err)
 			continue
 		}
 
-		log.Debugf("creating k8s secret")
-		secret := kubernetes.OpaqueSecret("test", namespace, map[string]string{
-			secretName: string(payload),
+		log.Debugf("creating k8s secret '%s'", msg.SecretName)
+		secret := kubernetes.OpaqueSecret(msg.SecretName, namespace, map[string]string{
+			msg.SecretName: string(payload),
 		})
 		_, err = clientSet.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
 		if errors.IsAlreadyExists(err) {

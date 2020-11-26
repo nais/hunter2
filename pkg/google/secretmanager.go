@@ -8,18 +8,19 @@ import (
 
 type SecretManagerClient struct {
 	*secretmanager.Client
+	projectID string
 }
 
-func NewSecretManagerClient(ctx context.Context) (*SecretManagerClient, error) {
+func NewSecretManagerClient(ctx context.Context, projectID string) (*SecretManagerClient, error) {
 	client, err := secretmanager.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("creating secret manager client: %w", err)
 	}
-	return &SecretManagerClient{client}, nil
+	return &SecretManagerClient{client, projectID}, nil
 }
 
-func (in *SecretManagerClient) GetSecretData(ctx context.Context, projectID, secretName string) ([]byte, error) {
-	name := fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectID, secretName)
+func (in *SecretManagerClient) GetSecretData(ctx context.Context, secretName string) ([]byte, error) {
+	name := fmt.Sprintf("projects/%s/secrets/%s/versions/latest", in.projectID, secretName)
 	req := &secretmanagerpb.AccessSecretVersionRequest{
 		Name: name,
 	}

@@ -3,6 +3,7 @@ package kubernetes
 import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
+	_ "k8s.io/client-go/plugin/pkg/client/auth" // enables azure/gcp auth; for side effects only
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )

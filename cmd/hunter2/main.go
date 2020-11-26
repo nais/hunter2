@@ -2,19 +2,18 @@ package main
 
 import (
 	"context"
-	"github.com/nais/hunter2/pkg/google"
-	"github.com/nais/hunter2/pkg/kubernetes"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os"
-	"strings"
-
-	flag "github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"net/http"
+	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/nais/hunter2/pkg/google"
+	"github.com/nais/hunter2/pkg/kubernetes"
+	"github.com/nais/hunter2/pkg/synchronizer"
+	flag "github.com/spf13/pflag"
+	"github.com/spf13/viper"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -97,31 +96,24 @@ func main() {
 	}
 
 	messages := pubsubClient.Consume(ctx)
-	for msg := range messages {
-		log.Debugf("got message: %s", msg.Data)
-
-		log.Debugf("fetching secret data for secret: %s", msg.SecretName)
-		payload, err := secretManagerClient.GetSecretData(ctx, msg.SecretName)
-		if err != nil {
-			log.Errorf("error while accessing secret manager secret: %v", err)
-			continue
+	for {
+		select {
+		case msg, ok := <-messages:
+			if !ok {
+				log.Errorf("lost connection to pubsub; retrying...")
+				time.Sleep(time.Second * 5)
+				messages = pubsubClient.Consume(ctx)
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			err := synchronizer.Sync(ctx, log.NewEntry(log.StandardLogger()), msg, namespace, secretManagerClient, clientSet)
+			cancel()
+			if err != nil {
+				log.Errorf("synchronizing secret: %v", err)
+			}
+		case <-stopChan:
+			return
 		}
-
-		log.Debugf("creating k8s secret '%s'", msg.SecretName)
-		secret := kubernetes.OpaqueSecret(msg.SecretName, namespace, map[string]string{
-			msg.SecretName: string(payload),
-		})
-		_, err = clientSet.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
-		if errors.IsAlreadyExists(err) {
-			_, err = clientSet.CoreV1().Secrets(namespace).Update(ctx, secret, metav1.UpdateOptions{})
-		}
-		if err != nil {
-			log.Errorf("error while creating or updating k8s secret: %v", err)
-			continue
-		}
-
-		log.Debugf("processed message ok, acking")
-		msg.Ack()
 	}
 }
 

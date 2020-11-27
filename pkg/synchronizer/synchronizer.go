@@ -28,10 +28,11 @@ func NewSynchronizer(logger *log.Entry, namespace string, secretManagerClient *g
 }
 
 func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) error {
-	var notexist bool
+	if err := in.skipNonOwnedSecrets(ctx, msg); err != nil {
+		return err
+	}
 
 	in.logger.Debugf("fetching secret data for secret: %s", msg.SecretName)
-
 	payload, err := in.secretManagerClient.GetSecretData(ctx, msg.SecretName)
 	if err != nil {
 		grpcerr, ok := status.FromError(err)
@@ -39,14 +40,6 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 			metrics.Errors.WithLabelValues(metrics.ErrorTypeSecretManagerAccess).Inc()
 			return fmt.Errorf("error while accessing secret manager secret: %v", err)
 		}
-		notexist = true
-	}
-
-	if err := in.skipNonOwnedSecrets(ctx, msg); err != nil {
-		return err
-	}
-
-	if notexist {
 		err = in.deleteSecret(ctx, msg.SecretName)
 	} else {
 		err = in.createOrUpdateSecret(ctx, msg, payload)

@@ -74,7 +74,7 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 			}
 			secretName, err = ParseSecretName(logMessage.ProtoPayload.ResourceName)
 			if err != nil {
-				log.Errorf("invalid message format: %s")
+				log.Errorf("invalid message format: %v", err)
 				return
 			}
 			messages <- PubSubMessage{

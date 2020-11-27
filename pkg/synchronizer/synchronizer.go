@@ -3,10 +3,9 @@ package synchronizer
 import (
 	"context"
 	"fmt"
-	"github.com/nais/hunter2/pkg/metrics"
-
 	"github.com/nais/hunter2/pkg/google"
 	"github.com/nais/hunter2/pkg/kubernetes"
+	"github.com/nais/hunter2/pkg/metrics"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -43,11 +42,8 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 		notexist = true
 	}
 
-	secret, err := in.clientset.CoreV1().Secrets(in.namespace).Get(ctx, msg.SecretName, metav1.GetOptions{})
-	if err == nil && !kubernetes.IsOwned(*secret) {
-		msg.Ack()
-		metrics.Errors.WithLabelValues(metrics.ErrorTypeNotManaged).Inc()
-		return fmt.Errorf("secret exists in cluster, but is not managed by hunter2")
+	if err := in.skipNonOwnedSecrets(ctx, msg); err != nil {
+		return err
 	}
 
 	if notexist {
@@ -66,6 +62,20 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	msg.Ack()
 
 	return nil
+}
+
+func (in *Synchronizer) skipNonOwnedSecrets(ctx context.Context, msg google.PubSubMessage) error {
+	secret, err := in.clientset.CoreV1().Secrets(in.namespace).Get(ctx, msg.SecretName, metav1.GetOptions{})
+	switch {
+	case err == nil && !kubernetes.IsOwned(*secret):
+		msg.Ack()
+		metrics.Errors.WithLabelValues(metrics.ErrorTypeNotManaged).Inc()
+		return fmt.Errorf("secret exists in cluster, but is not managed by hunter2")
+	case err != nil && !errors.IsNotFound(err):
+		return fmt.Errorf("error while getting secret %s", msg.SecretName)
+	default:
+		return nil
+	}
 }
 
 func (in *Synchronizer) createOrUpdateSecret(ctx context.Context, msg google.PubSubMessage, payload []byte) error {

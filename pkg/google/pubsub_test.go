@@ -2,9 +2,9 @@ package google_test
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
-	"github.com/magiconair/properties/assert"
 	"github.com/nais/hunter2/pkg/google"
 )
 
@@ -24,9 +24,9 @@ var secretNameTests = []testcase{
 		output: "foobar",
 	},
 	{
-		input: "projects/12345/secrets",
+		input:  "projects/12345/secrets",
 		output: "",
-		err: fmt.Errorf("resource name does not contain a secret"),
+		err:    fmt.Errorf("resource name does not contain a secret"),
 	},
 }
 
@@ -48,7 +48,7 @@ var secretVersionTests = []testcase{
 		output: "2",
 	},
 	{
-		input: "projects/12345/secrets",
+		input:  "projects/12345/secrets",
 		output: "1",
 	},
 }

@@ -7,12 +7,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const createdBy = "nais.io/created-by"
-const createdByValue = "hunter2"
+const CreatedBy = "nais.io/created-by"
+const CreatedByValue = "hunter2"
 
-const lastModifiedBy = "hunter2.nais.io/last-modified-by"
-const lastModified = "hunter2.nais.io/last-modified"
-const secretVersion = "hunter2.nais.io/secret-version"
+const LastModifiedBy = "hunter2.nais.io/last-modified-by"
+const LastModified = "hunter2.nais.io/last-modified"
+const SecretVersion = "hunter2.nais.io/secret-version"
 
 type SecretData struct {
 	Name           string
@@ -25,7 +25,7 @@ type SecretData struct {
 
 func IsOwned(secret corev1.Secret) bool {
 	labels := secret.GetLabels()
-	return labels != nil && labels[createdBy] == createdByValue
+	return labels != nil && labels[CreatedBy] == CreatedByValue
 }
 
 func OpaqueSecret(data SecretData) *corev1.Secret {
@@ -38,12 +38,12 @@ func OpaqueSecret(data SecretData) *corev1.Secret {
 			Name:      data.Name,
 			Namespace: data.Namespace,
 			Labels: map[string]string{
-				createdBy: createdByValue,
+				CreatedBy: CreatedByValue,
 			},
 			Annotations: map[string]string{
-				lastModified:   data.LastModified.Format(time.RFC3339),
-				lastModifiedBy: data.LastModifiedBy,
-				secretVersion:  data.SecretVersion,
+				LastModified:   data.LastModified.Format(time.RFC3339),
+				LastModifiedBy: data.LastModifiedBy,
+				SecretVersion:  data.SecretVersion,
 			},
 		},
 		StringData: data.Payload,

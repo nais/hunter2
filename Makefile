@@ -5,7 +5,7 @@ TAG := $(shell date +'%Y-%m-%d')-$(shell git rev-parse --short HEAD)
 .PHONY: test install build docker-build docker-push
 
 test: fmt vet
-	go test
+	go test ./...
 
 install:
 	go install

@@ -2,7 +2,18 @@ package metrics
 
 import "github.com/prometheus/client_golang/prometheus"
 
-const namespace = "hunter2"
+const (
+	namespace = "hunter2"
+	errorType = "error_type"
+)
+
+type ErrorType = string
+
+const (
+	ErrorTypeNotManaged                ErrorType = "not_managed"
+	ErrorTypeSecretManagerAccess       ErrorType = "secret_manager_access"
+	ErrorTypeKubernetesSecretOperation ErrorType = "kubernetes_secret_operation"
+)
 
 var (
 	Success = prometheus.NewCounter(
@@ -16,7 +27,7 @@ var (
 			Name:      "errors",
 			Namespace: namespace,
 			Help:      "Cumulative number of failed operations"},
-		[]string{"operation"},
+		[]string{errorType},
 	)
 	GoogleSecretManagerResponseTime = prometheus.NewHistogram(
 		prometheus.HistogramOpts{

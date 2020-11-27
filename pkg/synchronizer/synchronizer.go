@@ -37,6 +37,7 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	if err != nil {
 		grpcerr, ok := status.FromError(err)
 		if !ok || grpcerr.Code() != codes.NotFound {
+			metrics.Errors.WithLabelValues(metrics.ErrorTypeSecretManagerAccess).Inc()
 			return fmt.Errorf("error while accessing secret manager secret: %v", err)
 		}
 		notexist = true
@@ -45,6 +46,7 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	secret, err := in.clientset.CoreV1().Secrets(in.namespace).Get(ctx, msg.SecretName, metav1.GetOptions{})
 	if err == nil && !kubernetes.IsOwned(*secret) {
 		msg.Ack()
+		metrics.Errors.WithLabelValues(metrics.ErrorTypeNotManaged).Inc()
 		return fmt.Errorf("secret exists in cluster, but is not managed by hunter2")
 	}
 
@@ -55,10 +57,11 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	}
 
 	if err != nil {
+		metrics.Errors.WithLabelValues(metrics.ErrorTypeKubernetesSecretOperation).Inc()
 		return fmt.Errorf("error while synchronizing k8s secret: %v", err)
 	}
 
-	in.logger.Debugf("processed message ok, acking")
+	in.logger.Info("successfully processed message, acking")
 	metrics.Success.Inc()
 	msg.Ack()
 

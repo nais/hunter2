@@ -95,6 +95,8 @@ func main() {
 		log.Fatalf("getting secret manager client: %v", err)
 	}
 
+	syncer := synchronizer.NewSynchronizer(log.NewEntry(log.StandardLogger()), namespace, secretManagerClient, clientSet)
+
 	messages := pubsubClient.Consume(ctx)
 	for {
 		select {
@@ -106,7 +108,7 @@ func main() {
 				continue
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-			err := synchronizer.Sync(ctx, log.NewEntry(log.StandardLogger()), msg, namespace, secretManagerClient, clientSet)
+			err := syncer.Sync(ctx, msg)
 			cancel()
 			if err != nil {
 				log.Errorf("synchronizing secret: %v", err)

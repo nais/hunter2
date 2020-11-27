@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/nais/hunter2/pkg/metrics"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,23 +29,6 @@ const (
 	GoogleProjectID            = "google-project-id"
 	GooglePubsubSubscriptionID = "google-pubsub-subscription-id"
 	Namespace                  = "namespace"
-)
-
-var (
-	promSuccess = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name:      "successes",
-			Namespace: "hunter2",
-			Help:      "Cumulative number of successful operations"},
-		[]string{"operation"},
-	)
-	promErrors = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name:      "errors",
-			Namespace: "hunter2",
-			Help:      "Cumulative number of failed operations"},
-		[]string{"operation"},
-	)
 )
 
 func init() {
@@ -136,8 +120,9 @@ func serve(address string) {
 		w.Write([]byte("OK"))
 	})
 
-	prometheus.MustRegister(promSuccess)
-	prometheus.MustRegister(promErrors)
+	prometheus.MustRegister(metrics.Success)
+	prometheus.MustRegister(metrics.Errors)
+	prometheus.MustRegister(metrics.GoogleSecretManagerResponseTime)
 
 	http.Handle("/metrics", promhttp.Handler())
 

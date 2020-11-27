@@ -3,6 +3,7 @@ package synchronizer
 import (
 	"context"
 	"fmt"
+	"github.com/nais/hunter2/pkg/metrics"
 
 	"github.com/nais/hunter2/pkg/google"
 	"github.com/nais/hunter2/pkg/kubernetes"
@@ -58,7 +59,7 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	}
 
 	in.logger.Debugf("processed message ok, acking")
-
+	metrics.Success.Inc()
 	msg.Ack()
 
 	return nil

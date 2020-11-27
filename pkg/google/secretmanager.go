@@ -3,6 +3,8 @@ package google
 import (
 	"context"
 	"fmt"
+	"github.com/nais/hunter2/pkg/metrics"
+	"time"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
@@ -27,7 +29,10 @@ func (in *SecretManagerClient) GetSecretData(ctx context.Context, secretName str
 		Name: name,
 	}
 
+	start := time.Now()
 	result, err := in.AccessSecretVersion(ctx, req)
+	responseTime := time.Now().Sub(start)
+	metrics.GoogleSecretManagerResponseTime.Observe(responseTime.Seconds())
 	if err != nil {
 		return nil, err
 	}

@@ -10,20 +10,24 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 )
 
-type SecretManagerClient struct {
+type SecretManagerClient interface {
+	GetSecretData(ctx context.Context, projectID string) ([]byte, error)
+}
+
+type secretManagerClient struct {
 	*secretmanager.Client
 	projectID string
 }
 
-func NewSecretManagerClient(ctx context.Context, projectID string) (*SecretManagerClient, error) {
+func NewSecretManagerClient(ctx context.Context, projectID string) (SecretManagerClient, error) {
 	client, err := secretmanager.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("creating secret manager client: %w", err)
 	}
-	return &SecretManagerClient{client, projectID}, nil
+	return &secretManagerClient{client, projectID}, nil
 }
 
-func (in *SecretManagerClient) GetSecretData(ctx context.Context, secretName string) ([]byte, error) {
+func (in *secretManagerClient) GetSecretData(ctx context.Context, secretName string) ([]byte, error) {
 	req := ToAccessSecretVersionRequest(in.projectID, secretName)
 	start := time.Now()
 	result, err := in.AccessSecretVersion(ctx, req)

@@ -15,13 +15,37 @@ type PubSubClient struct {
 	*pubsub.Subscription
 }
 
-type PubSubMessage struct {
+type PubSubMessage interface {
+	Ack()
+	GetPrincipalEmail() string
+	GetSecretName() string
+	GetSecretVersion() string
+	GetTimestamp() time.Time
+}
+
+type pubSubMessage struct {
 	SecretName string
-	LogMessage LogMessage
+	LogMessage logMessage
 	pubsub.Message
 }
 
-type LogMessage struct {
+func (p *pubSubMessage) GetTimestamp() time.Time {
+	return p.LogMessage.Timestamp
+}
+
+func (p *pubSubMessage) GetPrincipalEmail() string {
+	return p.LogMessage.ProtoPayload.AuthenticationInfo.PrincipalEmail
+}
+
+func (p *pubSubMessage) GetSecretName() string {
+	return p.SecretName
+}
+
+func (p *pubSubMessage) GetSecretVersion() string {
+	return ParseSecretVersion(p.LogMessage.ProtoPayload.ResourceName)
+}
+
+type logMessage struct {
 	Timestamp    time.Time `json:"timestamp"`
 	ProtoPayload struct {
 		ResourceName       string `json:"resourceName"`
@@ -65,7 +89,7 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 		defer cancel()
 
 		err := in.Receive(cctx, func(ctx context.Context, msg *pubsub.Message) {
-			var logMessage LogMessage
+			var logMessage logMessage
 			var secretName string
 			err := json.Unmarshal(msg.Data, &logMessage)
 			if err != nil {
@@ -77,7 +101,7 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 				log.Errorf("invalid message format: %v", err)
 				return
 			}
-			messages <- PubSubMessage{
+			messages <- &pubSubMessage{
 				SecretName: secretName,
 				LogMessage: logMessage,
 				Message:    *msg,

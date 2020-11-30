@@ -67,7 +67,7 @@ func (in *Synchronizer) skipNonOwnedSecrets(ctx context.Context, msg google.PubS
 		metrics.Errors.WithLabelValues(metrics.ErrorTypeNotManaged).Inc()
 		return fmt.Errorf("secret exists in cluster, but is not managed by hunter2")
 	case err != nil && !errors.IsNotFound(err):
-		return fmt.Errorf("error while getting secret %s", msg.GetSecretName())
+		return fmt.Errorf("error while getting Kubernetes secret %s: %w", msg.GetSecretName(), err)
 	default:
 		return nil
 	}

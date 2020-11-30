@@ -37,9 +37,11 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	if err != nil {
 		grpcerr, ok := status.FromError(err)
 		if !ok || grpcerr.Code() != codes.NotFound {
+			// unhandled errors - return without acking; pubsub will retry message until acked
 			metrics.Errors.WithLabelValues(metrics.ErrorTypeSecretManagerAccess).Inc()
 			return fmt.Errorf("error while accessing secret manager secret: %v", err)
 		}
+		// delete secret if not found in secret manager
 		err = in.deleteSecret(ctx, msg.GetSecretName())
 	} else {
 		err = in.createOrUpdateSecret(ctx, msg, payload)

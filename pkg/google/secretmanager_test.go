@@ -1,8 +1,8 @@
 package google_test
 
 import (
-	"github.com/magiconair/properties/assert"
 	"github.com/nais/hunter2/pkg/google"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -13,5 +13,5 @@ func TestToAccessSecretVersionRequest(t *testing.T) {
 	expected := "projects/some-project/secrets/some-secret/versions/latest"
 	actual := google.ToAccessSecretVersionRequest(projectID, secretName)
 
-	assert.Equal(t, actual.GetName(), expected)
+	assert.Equal(t, expected, actual.GetName())
 }

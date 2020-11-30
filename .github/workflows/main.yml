@@ -9,7 +9,6 @@ jobs:
   build:
     name: Checkout code and setup node
     runs-on: ubuntu-latest
-    container: ambientsound/toolbox:1
     steps:
       - uses: actions/checkout@v1
       - name: Generate image environment variable

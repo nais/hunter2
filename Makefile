@@ -11,7 +11,7 @@ install:
 	go install
 
 build: test
-	go build -o ${NAME}
+	go build -o bin/${NAME} cmd/${NAME}/*.go
 
 docker-build: build
 	docker build -t "$(REPO):$(TAG)" -t "$(REPO):latest" .

@@ -1,0 +1,29 @@
+name: Build and deploy hunter2
+
+on: [push]
+
+env:
+  hunter2_image: docker.pkg.github.com/${{ github.repository }}/hunter2
+
+jobs:
+  build:
+    name: Checkout code and setup node
+    runs-on: ubuntu-latest
+    container: ambientsound/toolbox:1
+    steps:
+      - uses: actions/checkout@v1
+      - name: Generate image environment variable
+        shell: bash
+        run: |
+          version=$(./version.sh)
+          echo "version=${version}" >> $GITHUB_ENV
+          echo "HUNTER2_IMAGE=${hunter2_image}:${version}" >> $GITHUB_ENV
+      - name: Build hunter2 docker image
+        run: docker build . --tag $hunter2_IMAGE --tag ${hunter2_image}:latest
+      - name: Login to Github package registry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login docker.pkg.github.com -u "$GITHUB_REPOSITORY" --password-stdin
+      - name: Push docker image
+        run: |
+          docker push $HUNTER2_IMAGE

@@ -18,7 +18,7 @@ jobs:
           echo "version=${version}" >> $GITHUB_ENV
           echo "HUNTER2_IMAGE=${hunter2_image}:${version}" >> $GITHUB_ENV
       - name: Build hunter2 docker image
-        run: docker build . --tag $hunter2_image --tag ${hunter2_image}:latest
+        run: docker build . --tag $HUNTER2_IMAGE --tag ${hunter2_image}:latest
       - name: Login to Github package registry
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

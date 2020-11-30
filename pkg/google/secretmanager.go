@@ -24,11 +24,7 @@ func NewSecretManagerClient(ctx context.Context, projectID string) (*SecretManag
 }
 
 func (in *SecretManagerClient) GetSecretData(ctx context.Context, secretName string) ([]byte, error) {
-	name := fmt.Sprintf("projects/%s/secrets/%s/versions/latest", in.projectID, secretName)
-	req := &secretmanagerpb.AccessSecretVersionRequest{
-		Name: name,
-	}
-
+	req := ToAccessSecretVersionRequest(in.projectID, secretName)
 	start := time.Now()
 	result, err := in.AccessSecretVersion(ctx, req)
 	responseTime := time.Now().Sub(start)
@@ -37,4 +33,11 @@ func (in *SecretManagerClient) GetSecretData(ctx context.Context, secretName str
 		return nil, err
 	}
 	return result.Payload.Data, nil
+}
+
+func ToAccessSecretVersionRequest(projectID, secretName string) *secretmanagerpb.AccessSecretVersionRequest {
+	name := fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectID, secretName)
+	return &secretmanagerpb.AccessSecretVersionRequest{
+		Name: name,
+	}
 }

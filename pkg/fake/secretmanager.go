@@ -3,11 +3,20 @@ package fake
 import (
 	"context"
 	"github.com/nais/hunter2/pkg/google"
+	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 )
 
 type secretManagerClientImpl struct {
-	data []byte
-	err  error
+	data     []byte
+	metadata *secretmanagerpb.Secret
+	err      error
+}
+
+func (s *secretManagerClientImpl) GetSecretMetadata(context.Context, string) (*secretmanagerpb.Secret, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.metadata, nil
 }
 
 func (s *secretManagerClientImpl) GetSecretData(context.Context, string) ([]byte, error) {
@@ -17,6 +26,6 @@ func (s *secretManagerClientImpl) GetSecretData(context.Context, string) ([]byte
 	return s.data, nil
 }
 
-func NewSecretManagerClient(data []byte, err error) google.SecretManagerClient {
-	return &secretManagerClientImpl{data: data, err: err}
+func NewSecretManagerClient(data []byte, metadata *secretmanagerpb.Secret, err error) google.SecretManagerClient {
+	return &secretManagerClientImpl{data: data, metadata: metadata, err: err}
 }

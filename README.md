@@ -20,3 +20,9 @@ HUNTER2_NAMESPACE=default
 HUNTER2_KUBECONFIG_PATH=$KUBECONFIG
 GOOGLE_APPLICATION_CREDENTIALS=/Users/<user>/.config/gcloud/application_default_credentials.json
 ```
+
+### Run
+
+```shell script
+make local
+```

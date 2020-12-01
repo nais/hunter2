@@ -20,12 +20,12 @@ loop forever
 	hunter -> PubSub: watch for updates
 end
 
-==On create / update==
-
-developer -> SecretManager: Add or update secret
+developer -> SecretManager: Add/Update/Delete secret
 SecretManager -> PubSub: Update
 hunter -> Secret: is managed
 hunter -> SecretManager: get secret
+
+==On create / update==
 
 group secret do not exists in cluster
     hunter -> Secret: create
@@ -42,19 +42,14 @@ end
 hunter -> PubSub: ack msg
 
 ==On deletion==
-    developer -> SecretManager: delete
-    SecretManager -> PubSub: Update
-    hunter -> Secret: is managed
-    hunter -> SecretManager: get secret
 
 group secret do not exists in SecretManager
       hunter -> Secret: delete
 end
 
-==On Error==
-hunter -> Secret: is managed
-hunter -> SecretManager: get secret
+hunter -> PubSub: ack msg
 
+==On Error==
 group unhandled error
     hunter -> hunter: return without acking
 end

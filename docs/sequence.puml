@@ -1,0 +1,56 @@
+@startuml component
+title Hunter2 Sequence Flow
+skinparam maxMessageSize 300
+autonumber
+
+actor developer as "Developer"
+control hunter as "Hunter2"
+
+box "Google Project Resources"
+participant SecretManager
+participant PubSub
+end box
+
+box "Team Cluster Resources"
+participant Secret
+participant Application
+end box
+
+developer -> SecretManager: Add secret
+SecretManager -> PubSub: Update
+
+loop forever
+	hunter -> PubSub: watch for updates
+end
+
+hunter -> Secret: is managed
+hunter -> SecretManager: get secret
+
+==On create / update==
+
+group secret do not exists in cluster
+    hunter -> Secret: create
+end
+
+group secret already exists in cluster
+    hunter -> Secret: update
+end
+
+group secret do not exists in SecretManager
+    hunter -> Secret: delete
+end
+
+hunter -> PubSub: ack msg
+
+== Usage Hunter2 ==
+
+Secret -> Application: mount
+
+==On deletion==
+    developer -> SecretManager: on delete
+    hunter -> Secret: delete
+
+==On Error==
+    hunter -> PubSub: do not ack msg
+
+@enduml

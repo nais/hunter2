@@ -3,6 +3,9 @@ package synchronizer
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/nais/hunter2/pkg/google"
 	"github.com/nais/hunter2/pkg/kubernetes"
 	"github.com/nais/hunter2/pkg/metrics"
@@ -16,9 +19,9 @@ import (
 )
 
 const (
-	StaticSecretDataKey      = "secret"
-	MatchingSecretLabelKey   = "sync"
-	MatchingSecretLabelValue = "true"
+	StaticSecretDataKey    = "secret"
+	MatchingSecretLabelKey = "sync"
+	SecretContainsEnvKey   = "env"
 )
 
 type Synchronizer struct {
@@ -46,32 +49,36 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	in.logger.Debugf("fetching secret metadata for secret: %s", msg.GetSecretName())
 	metadata, err := in.secretManagerClient.GetSecretMetadata(ctx, msg.GetSecretName())
 	if err == nil {
-		if !SecretContainsMatchingLabels(metadata) {
+		if !secretContainsMatchingLabels(metadata) {
 			in.logger.Debugf("secret does not contain matching labels, skipping...")
 			msg.Ack()
 			return nil
 		}
 	} else {
 		if err = in.handleSecretManagerError(err); err != nil {
-			return fmt.Errorf("error while getting secret manager secret metadata: %w", err)
+			return fmt.Errorf("while getting secret manager secret metadata: %w", err)
 		}
 	}
 
 	in.logger.Debugf("fetching secret data for secret: %s", msg.GetSecretName())
-	payload, err := in.secretManagerClient.GetSecretData(ctx, msg.GetSecretName())
+	raw, err := in.secretManagerClient.GetSecretData(ctx, msg.GetSecretName())
 	if err != nil {
 		if err = in.handleSecretManagerError(err); err != nil {
-			return fmt.Errorf("error while accessing secret manager secret: %w", err)
+			return fmt.Errorf("while accessing secret manager secret: %w", err)
 		}
 		// delete secret if not found in secret manager
 		err = in.deleteKubernetesSecret(ctx, msg.GetSecretName())
 	} else {
+		payload, err := SecretPayload(metadata, raw)
+		if err != nil {
+			return fmt.Errorf("wrong secret format: %s", err)
+		}
 		err = in.createOrUpdateKubernetesSecret(ctx, msg, payload)
 	}
 
 	if err != nil {
 		metrics.Errors.WithLabelValues(metrics.ErrorTypeKubernetesSecretOperation).Inc()
-		return fmt.Errorf("error while synchronizing k8s secret: %w", err)
+		return fmt.Errorf("while synchronizing k8s secret: %w", err)
 	}
 
 	in.logger.Info("successfully processed message, acking")
@@ -106,7 +113,7 @@ func (in *Synchronizer) handleSecretManagerError(err error) error {
 	return fmt.Errorf("error while performing secret manager operation: %w", err)
 }
 
-func (in *Synchronizer) createOrUpdateKubernetesSecret(ctx context.Context, msg google.PubSubMessage, payload []byte) error {
+func (in *Synchronizer) createOrUpdateKubernetesSecret(ctx context.Context, msg google.PubSubMessage, payload map[string]string) error {
 	secret := kubernetes.OpaqueSecret(ToSecretData(in.namespace, msg, payload))
 	in.logger.Debugf("creating/updating k8s secret '%s'", msg.GetSecretName())
 
@@ -127,20 +134,59 @@ func (in *Synchronizer) deleteKubernetesSecret(ctx context.Context, name string)
 	return err
 }
 
-func ToSecretData(namespace string, msg google.PubSubMessage, payload []byte) kubernetes.SecretData {
+func ToSecretData(namespace string, msg google.PubSubMessage, payload map[string]string) kubernetes.SecretData {
 	return kubernetes.SecretData{
 		Name:           msg.GetSecretName(),
 		Namespace:      namespace,
 		LastModified:   msg.GetTimestamp(),
 		LastModifiedBy: msg.GetPrincipalEmail(),
 		SecretVersion:  msg.GetSecretVersion(),
-		Payload: map[string]string{
-			StaticSecretDataKey: string(payload),
-		},
+		Payload:        payload,
 	}
 }
 
-func SecretContainsMatchingLabels(metadata *secretmanagerpb.Secret) bool {
-	val, ok := metadata.Labels[MatchingSecretLabelKey]
-	return ok && val == MatchingSecretLabelValue
+func parseSecretEnvironmentVariables(data string) (map[string]string, error) {
+	env := make(map[string]string)
+	lines := strings.Split(data, "\n")
+	for n, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 || line[0] == '#' { // remove empty lines and comments
+			continue
+		}
+		keyval := strings.SplitN(line, "=", 2)
+		if len(keyval) != 2 {
+			return nil, fmt.Errorf("wrong environment variable format; expected KEY=VALUE")
+		}
+		key := keyval[0]
+		val := keyval[1]
+		if _, ok := env[key]; ok {
+			return nil, fmt.Errorf("duplicate environment variable on line %d", n+1)
+		}
+		env[key] = val
+	}
+	return env, nil
+}
+
+func SecretPayload(metadata *secretmanagerpb.Secret, raw []byte) (map[string]string, error) {
+	if secretContainsEnvironmentVariables(metadata) {
+		return parseSecretEnvironmentVariables(string(raw))
+	} else {
+		return map[string]string{
+			StaticSecretDataKey: string(raw),
+		}, nil
+	}
+}
+
+func secretLabelEnabled(metadata *secretmanagerpb.Secret, key string) bool {
+	val, ok := metadata.Labels[key]
+	enabled, _ := strconv.ParseBool(val)
+	return ok && enabled
+}
+
+func secretContainsMatchingLabels(metadata *secretmanagerpb.Secret) bool {
+	return secretLabelEnabled(metadata, MatchingSecretLabelKey)
+}
+
+func secretContainsEnvironmentVariables(metadata *secretmanagerpb.Secret) bool {
+	return secretLabelEnabled(metadata, SecretContainsEnvKey)
 }

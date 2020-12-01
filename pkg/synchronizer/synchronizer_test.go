@@ -7,6 +7,7 @@ import (
 	"github.com/nais/hunter2/pkg/synchronizer"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
@@ -17,17 +18,30 @@ import (
 	"time"
 )
 
+func init() {
+	log.SetLevel(log.DebugLevel)
+}
+
+var (
+	logger           = log.NewEntry(log.StandardLogger())
+	kubernetesClient = kubernetesFake.NewSimpleClientset()
+	namespace        = "some-namespace"
+	principalEmail   = "some-principal@domain.test"
+	secretName       = "some-secret"
+	secretVersion    = "1"
+	timestamp        = time.Now()
+	ctx              = context.Background()
+	payload          = []byte("some-payload")
+	metadata         = &secretmanagerpb.Secret{
+		Name: secretName,
+		Labels: map[string]string{
+			synchronizer.MatchingSecretLabelKey: synchronizer.MatchingSecretLabelValue,
+		},
+	}
+)
+
 func TestToSecretData(t *testing.T) {
-	principalEmail := "some-principal@domain.test"
-	secretName := "some-secret"
-	secretVersion := "1"
-	timestamp := time.Now()
-
 	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
-
-	namespace := "some-namespace"
-	payload := []byte("some-payload")
-
 	secretData := synchronizer.ToSecretData(namespace, msg, payload)
 
 	assert.Equal(t, secretData.Namespace, namespace)
@@ -40,29 +54,34 @@ func TestToSecretData(t *testing.T) {
 	assert.Equal(t, secretData.LastModifiedBy, principalEmail)
 }
 
-func TestSynchronizer(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
-	logger := log.NewEntry(log.StandardLogger())
+func TestSecretContainsMatchingLabels(t *testing.T) {
+	metadata := &secretmanagerpb.Secret{
+		Name:        "some-secret",
+		Replication: nil,
+		CreateTime:  nil,
+		Labels: map[string]string{
+			"secret-key": "secret-version",
+		},
+	}
 
-	principalEmail := "some-principal@domain.test"
-	secretName := "some-secret"
-	secretVersion := "1"
-	timestamp := time.Now()
+	matches := synchronizer.SecretContainsMatchingLabels(metadata)
+	assert.False(t, matches)
 
+	metadata.Labels = map[string]string{
+		synchronizer.MatchingSecretLabelKey: synchronizer.MatchingSecretLabelValue,
+	}
+	matches = synchronizer.SecretContainsMatchingLabels(metadata)
+	assert.True(t, matches)
+}
+
+func TestSynchronizer_Sync_CreateNewSecret(t *testing.T) {
 	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
-
-	namespace := "some-namespace"
-	payload := []byte("some-payload")
-
-	secretManagerClient := fake.NewSecretManagerClient(payload, nil)
-	kubernetesClient := kubernetesFake.NewSimpleClientset()
+	secretManagerClient := fake.NewSecretManagerClient(payload, metadata, nil)
 	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
-	ctx := context.Background()
 
 	err := syncer.Sync(ctx, msg)
 	assert.NoError(t, err)
 
-	// assert that synchronizer has created new secret
 	secret, err := kubernetesClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	assert.NoError(t, err)
 	assert.Equal(t, secretName, secret.GetName())
@@ -76,8 +95,24 @@ func TestSynchronizer(t *testing.T) {
 		kubernetes.LastModifiedBy: principalEmail,
 		kubernetes.SecretVersion:  secretVersion,
 	}, secret.GetAnnotations())
+}
 
-	// assert non-owned secret is skipped
+func TestSynchronizer_Sync_UpdateExistingSecret(t *testing.T) {
+	secretVersion = "2"
+
+	secretManagerClient := fake.NewSecretManagerClient(payload, metadata, nil)
+	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
+	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
+
+	err := syncer.Sync(ctx, msg)
+	assert.NoError(t, err)
+
+	secret, err := kubernetesClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+	assert.NoError(t, err)
+	assert.Equal(t, secretVersion, secret.GetAnnotations()[kubernetes.SecretVersion])
+}
+
+func TestSynchronizer_Sync_SkipNonOwnedSecret(t *testing.T) {
 	nonOwnedSecretName := "non-owned"
 	nonOwnedSecret := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
@@ -91,38 +126,44 @@ func TestSynchronizer(t *testing.T) {
 		StringData: nil,
 		Type:       corev1.SecretTypeOpaque,
 	}
-	_, err = kubernetesClient.CoreV1().Secrets(namespace).Create(ctx, nonOwnedSecret, metav1.CreateOptions{})
+	_, err := kubernetesClient.CoreV1().Secrets(namespace).Create(ctx, nonOwnedSecret, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
-	principalEmail = "some-principal@domain.test"
-	secretVersion = "1"
-	timestamp = time.Now()
+	msg := fake.NewPubSubMessage(principalEmail, nonOwnedSecretName, secretVersion, timestamp)
+	secretManagerClient := fake.NewSecretManagerClient(payload, metadata, nil)
+	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
 
-	msg = fake.NewPubSubMessage(principalEmail, nonOwnedSecretName, secretVersion, timestamp)
 	err = syncer.Sync(ctx, msg)
 	assert.Error(t, err)
 
-	secret, err = kubernetesClient.CoreV1().Secrets(namespace).Get(ctx, nonOwnedSecretName, metav1.GetOptions{})
+	secret, err := kubernetesClient.CoreV1().Secrets(namespace).Get(ctx, nonOwnedSecretName, metav1.GetOptions{})
 	assert.NoError(t, err)
 	assert.Equal(t, nonOwnedSecret, secret)
+}
 
-	// assert that secret is updated
-	principalEmail = "some-principal@domain.test"
-	secretVersion = "2"
-	timestamp = time.Now()
+func TestSynchronizer_Sync_SkipNonMatchingLabels(t *testing.T) {
+	nonMatchingSecretName := "non-matching-secret"
+	nonMatchingMetadata := metadata
+	nonMatchingMetadata.Labels = map[string]string{"some-key": "some-value"}
 
-	msg = fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
-	err = syncer.Sync(ctx, msg)
+	msg := fake.NewPubSubMessage(principalEmail, nonMatchingSecretName, secretVersion, timestamp)
+	secretManagerClient := fake.NewSecretManagerClient(payload, metadata, nil)
+	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
+
+	err := syncer.Sync(ctx, msg)
 	assert.NoError(t, err)
 
-	secret, err = kubernetesClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
-	assert.NoError(t, err)
-	assert.Equal(t, secretVersion, secret.GetAnnotations()[kubernetes.SecretVersion])
+	_, err = kubernetesClient.CoreV1().Secrets(namespace).Get(ctx, nonMatchingSecretName, metav1.GetOptions{})
+	assert.Error(t, err)
+	assert.True(t, errors.IsNotFound(err))
+}
 
-	// assert that owned secret not found in secret manager is deleted from kubernetes
-	secretManagerClient = fake.NewSecretManagerClient(payload, status.Error(codes.NotFound, "secret not found"))
-	syncer = synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
-	err = syncer.Sync(ctx, msg)
+func TestSynchronizer_Sync_DeleteNotFoundSecret(t *testing.T) {
+	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
+	secretManagerClient := fake.NewSecretManagerClient(payload, metadata, status.Error(codes.NotFound, "secret not found"))
+	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
+
+	err := syncer.Sync(ctx, msg)
 	assert.NoError(t, err)
 
 	_, err = kubernetesClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})

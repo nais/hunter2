@@ -34,6 +34,11 @@ func TestOpaqueSecret(t *testing.T) {
 		kubernetes.SecretVersion:  secretData.SecretVersion,
 	}, secret.GetAnnotations())
 	assert.Equal(t, secretData.Payload, secret.StringData)
+
+	secretDataUppercase := secretData
+	secretDataUppercase.Name = "Some-Name-With-UpperCase"
+	secret = kubernetes.OpaqueSecret(secretDataUppercase)
+	assert.Equal(t, "some-name-with-uppercase", secret.Name)
 }
 
 func TestIsOwned(t *testing.T) {

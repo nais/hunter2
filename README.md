@@ -2,6 +2,85 @@
 
 hunter2 is a daemon that performs one-way synchronization of secrets from Google Secret Manager to Kubernetes Secrets.
 
+## Overview
+
+![hunter2 sequence diagram](docs/sequence.svg)
+
+## Prerequisites
+
+### Google Cloud Platform Project
+
+Required APIs/resources and IAM roles/permissions.
+
+#### Secret Manager
+
+hunter2 needs the following roles:
+
+- `roles/secretmanager.secretAccessor` - required for accessing secret data
+- `roles/secretmanager.viewer` - required for accessing secret metadata, in our case labels
+
+#### Pub/Sub Topic and Subscription
+
+The Pub/Sub topic is a sink for published audit log events from Secret Manager. 
+
+The Pub/Sub subscription (allows hunter2 to react to events in Secret Manager as they are published instead of 
+having to continuously perform lookups in Secret Manager for changes.
+
+hunter2 needs the `roles/pubsub.subscriber` role for the subscription.
+
+#### Log Router Sink
+
+Filter audit log events and route them into a sink - in this case a Pub/Sub topic.
+
+The _writer identity_ (service account) for the log router sink should have the `roles/pubsub.publisher` role assigned on the Pub/Sub topic resource.
+
+Filter query:
+
+```
+resource.type="audited_resource"
+  AND resource.labels.service="secretmanager.googleapis.com"
+  AND severity="NOTICE"
+  AND resource.labels.method=(
+    "google.cloud.secretmanager.v1.SecretManagerService.AddSecretVersion"
+    OR "google.cloud.secretmanager.v1.SecretManagerService.DeleteSecret"
+    OR "google.cloud.secretmanager.v1.SecretManagerService.CreateSecret"
+  )
+```
+
+### Kubernetes Cluster
+
+#### Workload Identity
+
+hunter2 must be set up with a [workload identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity).
+
+The associated Google Service Account must be set up with the permissions and roles specified earlier.
+
+#### RBAC
+
+```yaml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hunter2
+  namespace: {{ .name }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+```
+
+## Development
+
 ### Installation
 
 ```shell script

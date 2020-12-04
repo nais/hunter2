@@ -4,58 +4,41 @@ skinparam maxMessageSize 300
 autonumber
 
 actor developer as "Developer"
-control hunter as "Hunter2"
 
 box "Google Project Resources"
-participant SecretManager
-participant PubSub
+participant SecretManager as "Secret Manager"
+participant LogRouter as "Log Router"
+participant PubSub as "PubSub Topic"
 end box
 
-box "Team Cluster Resources"
+box "Kubernetes Cluster Resources"
+control hunter as "Hunter2"
 participant Secret
-participant Application
 end box
 
-loop forever
-	hunter -> PubSub: watch for updates
-end
+developer -> SecretManager: create secret / \ncreate secret version / \ndelete secret
+SecretManager -> LogRouter: audit logs
+LogRouter -> PubSub: publish filtered audit logs
+hunter -> PubSub: subscribe to updates
 
-developer -> SecretManager: Add/Update/Delete secret
-SecretManager -> PubSub: Update
-hunter -> Secret: is managed
-hunter -> SecretManager: get secret
+== on new events ==
 
-==On create / update==
-
-group secret do not exists in cluster
-    hunter -> Secret: create
-end
-
+hunter -> Secret: check if exists
 group secret already exists in cluster
-    hunter -> Secret: update
+  hunter -> Secret: check for specific annotation
+  group annotation not found
+    hunter -> PubSub: ack and return early
+  end
 end
 
-group secret do not exists in SecretManager
-    hunter -> Secret: delete
+hunter -> SecretManager: fetch secret metadata and data
+
+group if secret not found in Secret Manager
+  hunter -> Secret: delete
+else else
+  hunter -> Secret: create or update
 end
 
-hunter -> PubSub: ack msg
-
-==On deletion==
-
-group secret do not exists in SecretManager
-      hunter -> Secret: delete
-end
-
-hunter -> PubSub: ack msg
-
-==On Error==
-group unhandled error
-    hunter -> hunter: return without acking
-end
-
-== Usage Hunter2 ==
-
-Secret -> Application: mount
+hunter -> PubSub: ack message
 
 @enduml

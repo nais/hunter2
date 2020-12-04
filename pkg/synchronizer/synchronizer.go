@@ -118,17 +118,16 @@ func (in *Synchronizer) createOrUpdateKubernetesSecret(ctx context.Context, msg 
 	in.logger.Debugf("creating/updating k8s secret '%s'", msg.GetSecretName())
 
 	_, err := in.clientset.CoreV1().Secrets(in.namespace).Create(ctx, secret, metav1.CreateOptions{})
-	if errors.IsAlreadyExists(err) {
+	if err != nil && errors.IsAlreadyExists(err) {
 		_, err = in.clientset.CoreV1().Secrets(in.namespace).Update(ctx, secret, metav1.UpdateOptions{})
 	}
-
 	return err
 }
 
 func (in *Synchronizer) deleteKubernetesSecret(ctx context.Context, name string) error {
 	in.logger.Debugf("deleting k8s secret '%s'", name)
 	err := in.clientset.CoreV1().Secrets(in.namespace).Delete(ctx, name, metav1.DeleteOptions{})
-	if errors.IsNotFound(err) {
+	if err != nil && errors.IsNotFound(err) {
 		return nil
 	}
 	return err

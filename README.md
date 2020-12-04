@@ -23,7 +23,7 @@ hunter2 needs the following roles:
 
 The Pub/Sub topic is a sink for published audit log events from Secret Manager. 
 
-The Pub/Sub subscription (allows hunter2 to react to events in Secret Manager as they are published instead of 
+The Pub/Sub subscription allows hunter2 to react to events in Secret Manager as they are published instead of 
 having to continuously perform lookups in Secret Manager for changes.
 
 hunter2 needs the `roles/pubsub.subscriber` role for the subscription.

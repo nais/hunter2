@@ -37,7 +37,7 @@ jobs:
         run: |
           version=$(./version.sh)
           echo "version=${version}" >> $GITHUB_ENV
-          echo "IMAGE=${image}:${version}" >> $GITHUB_ENV
+          echo "IMAGE=${hunter2_image}:${version}" >> $GITHUB_ENV
           echo "NAIS_YAML=${GITHUB_WORKSPACE}/nais-yaml" >> $GITHUB_ENV
           pwd
       - name: Bump version in nais-yaml

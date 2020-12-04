@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +36,7 @@ func OpaqueSecret(data SecretData) *corev1.Secret {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      data.Name,
+			Name:      strings.ToLower(data.Name),
 			Namespace: data.Namespace,
 			Labels: map[string]string{
 				CreatedBy: CreatedByValue,

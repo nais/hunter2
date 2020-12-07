@@ -38,7 +38,7 @@ func init() {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
-	flag.String(BindAddress, ":8080", "Bind address for application.")
+	flag.String(BindAddress, "127.0.0.1:8080", "Bind address for application.")
 	flag.Bool(Debug, false, "enables debug logging")
 	flag.String(GoogleProjectID, "", "GCP project ID.")
 	flag.String(GooglePubsubSubscriptionID, "", "GCP subscription ID for the PubSub topic to consume from.")

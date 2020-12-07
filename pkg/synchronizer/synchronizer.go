@@ -50,12 +50,14 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	metadata, err := in.secretManagerClient.GetSecretMetadata(ctx, msg.GetSecretName())
 	if err == nil {
 		if !secretContainsMatchingLabels(metadata) {
+			metrics.LogRequest(metrics.SystemSecretManager, metrics.OperationRead, metrics.StatusNoSyncLabel)
 			in.logger.Debugf("secret does not contain matching labels, skipping...")
 			msg.Ack()
 			return nil
 		}
 	} else {
-		if err = in.handleSecretManagerError(err); err != nil {
+		if err = in.ignoreNotFound(err); err != nil {
+			metrics.LogRequest(metrics.SystemSecretManager, metrics.OperationRead, metrics.StatusError)
 			return fmt.Errorf("while getting secret manager secret metadata: %w", err)
 		}
 	}
@@ -63,13 +65,15 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	in.logger.Debugf("fetching secret data for secret: %s", msg.GetSecretName())
 	raw, err := in.secretManagerClient.GetSecretData(ctx, msg.GetSecretName())
 	if err != nil {
-		if err = in.handleSecretManagerError(err); err != nil {
+		if err = in.ignoreNotFound(err); err != nil {
+			metrics.LogRequest(metrics.SystemSecretManager, metrics.OperationRead, metrics.StatusError)
 			return fmt.Errorf("while accessing secret manager secret: %w", err)
 		}
 		// delete secret if not found in secret manager
 		err = in.deleteKubernetesSecret(ctx, msg.GetSecretName())
 	} else {
 		payload, err := SecretPayload(metadata, raw)
+		metrics.LogRequest(metrics.SystemSecretManager, metrics.OperationRead, metrics.ErrorStatus(err, metrics.StatusInvalidData))
 		if err != nil {
 			return fmt.Errorf("wrong secret format: %s", err)
 		}
@@ -77,12 +81,10 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	}
 
 	if err != nil {
-		metrics.Errors.WithLabelValues(metrics.ErrorTypeKubernetesSecretOperation).Inc()
 		return fmt.Errorf("while synchronizing k8s secret: %w", err)
 	}
 
 	in.logger.Info("successfully processed message, acking")
-	metrics.Success.Inc()
 	msg.Ack()
 
 	return nil
@@ -93,23 +95,23 @@ func (in *Synchronizer) skipNonOwnedSecrets(ctx context.Context, msg google.PubS
 	switch {
 	case err == nil && !kubernetes.IsOwned(*secret):
 		msg.Ack()
-		metrics.Errors.WithLabelValues(metrics.ErrorTypeNotManaged).Inc()
+		metrics.LogRequest(metrics.SystemKubernetes, metrics.OperationRead, metrics.StatusNotManaged)
 		return fmt.Errorf("secret %s exists in cluster, but is not managed by hunter2", msg.GetSecretName())
 	case err != nil && !errors.IsNotFound(err):
+		metrics.LogRequest(metrics.SystemKubernetes, metrics.OperationRead, metrics.StatusError)
 		return fmt.Errorf("error while getting Kubernetes secret %s: %w", msg.GetSecretName(), err)
 	default:
 		return nil
 	}
 }
 
-func (in *Synchronizer) handleSecretManagerError(err error) error {
+func (in *Synchronizer) ignoreNotFound(err error) error {
 	grpcerr, ok := status.FromError(err)
 	if ok && grpcerr.Code() == codes.NotFound {
 		// continue if not found in secret manager
 		return nil
 	}
 	// unhandled errors - return without acking; pubsub will retry message until acked
-	metrics.Errors.WithLabelValues(metrics.ErrorTypeSecretManagerAccess).Inc()
 	return fmt.Errorf("error while performing secret manager operation: %w", err)
 }
 
@@ -120,7 +122,11 @@ func (in *Synchronizer) createOrUpdateKubernetesSecret(ctx context.Context, msg 
 	_, err := in.clientset.CoreV1().Secrets(in.namespace).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil && errors.IsAlreadyExists(err) {
 		_, err = in.clientset.CoreV1().Secrets(in.namespace).Update(ctx, secret, metav1.UpdateOptions{})
+		metrics.LogRequest(metrics.SystemKubernetes, metrics.OperationUpdate, metrics.ErrorStatus(err, metrics.StatusError))
+		return err
 	}
+
+	metrics.LogRequest(metrics.SystemKubernetes, metrics.OperationCreate, metrics.ErrorStatus(err, metrics.StatusError))
 	return err
 }
 
@@ -130,6 +136,9 @@ func (in *Synchronizer) deleteKubernetesSecret(ctx context.Context, name string)
 	if err != nil && errors.IsNotFound(err) {
 		return nil
 	}
+
+	metrics.LogRequest(metrics.SystemKubernetes, metrics.OperationDelete, metrics.ErrorStatus(err, metrics.StatusError))
+
 	return err
 }
 

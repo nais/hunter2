@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"github.com/nais/hunter2/pkg/metrics"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/nais/hunter2/pkg/metrics"
 
 	"github.com/nais/hunter2/pkg/google"
 	"github.com/nais/hunter2/pkg/kubernetes"
@@ -120,9 +121,9 @@ func serve(address string) {
 		w.Write([]byte("OK"))
 	})
 
-	prometheus.MustRegister(metrics.Success)
-	prometheus.MustRegister(metrics.Errors)
+	prometheus.MustRegister(metrics.Requests)
 	prometheus.MustRegister(metrics.GoogleSecretManagerResponseTime)
+	metrics.InitLabels()
 
 	http.Handle("/metrics", promhttp.Handler())
 

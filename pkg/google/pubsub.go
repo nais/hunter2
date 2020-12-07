@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/pubsub"
+	"github.com/nais/hunter2/pkg/metrics"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -93,11 +94,13 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 			var secretName string
 			err := json.Unmarshal(msg.Data, &logMessage)
 			if err != nil {
+				metrics.LogRequest(metrics.SystemPubSub, metrics.OperationRead, metrics.StatusInvalidData)
 				log.Warnf("failed to unmarshal message: %v", err)
 				return
 			}
 			secretName, err = ParseSecretName(logMessage.ProtoPayload.ResourceName)
 			if err != nil {
+				metrics.LogRequest(metrics.SystemPubSub, metrics.OperationRead, metrics.StatusInvalidData)
 				log.Errorf("invalid message format: %v", err)
 				return
 			}
@@ -107,6 +110,7 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 				Message:    *msg,
 			}
 		})
+		metrics.LogRequest(metrics.SystemPubSub, metrics.OperationRead, metrics.ErrorStatus(err, metrics.StatusError))
 		if err != nil {
 			log.Errorf("pulling message from subscription: %v", err)
 		}

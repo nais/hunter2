@@ -67,6 +67,13 @@ func LogRequest(system System, operation Operation, status Status) {
 }
 
 var (
+	ManagedSecrets = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name:      "managed_secrets",
+			Namespace: namespace,
+			Help:      "Total number of managed secrets in namespace",
+		},
+	)
 	Requests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:      "requests",

@@ -13,6 +13,7 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubernetes2 "k8s.io/client-go/kubernetes"
@@ -33,6 +34,20 @@ type Synchronizer struct {
 
 func NewSynchronizer(logger *log.Entry, namespace string, secretManagerClient google.SecretManagerClient, clientSet kubernetes2.Interface) *Synchronizer {
 	return &Synchronizer{logger: logger, namespace: namespace, secretManagerClient: secretManagerClient, clientset: clientSet}
+}
+
+func (in *Synchronizer) ManagedSecrets(ctx context.Context) ([]corev1.Secret, error) {
+	labelSelector := fmt.Sprintf("%s=%s", kubernetes.CreatedBy, kubernetes.CreatedByValue)
+
+	secrets, err := in.clientset.CoreV1().Secrets(in.namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return secrets.Items, nil
 }
 
 func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) error {

@@ -30,6 +30,7 @@ const (
 	GoogleProjectID            = "google-project-id"
 	GooglePubsubSubscriptionID = "google-pubsub-subscription-id"
 	Namespace                  = "namespace"
+	ReportInterval             = "report-interval"
 )
 
 func init() {
@@ -43,6 +44,7 @@ func init() {
 	flag.String(GooglePubsubSubscriptionID, "", "GCP subscription ID for the PubSub topic to consume from.")
 	flag.String(KubeconfigPath, "", "path to Kubernetes config file")
 	flag.String(Namespace, "", "Kubernetes namespace that the application operates in.")
+	flag.Duration(ReportInterval, 5*time.Minute, "How often to collect number of Kubernetes secrets in cluster")
 
 	flag.Parse()
 
@@ -82,6 +84,8 @@ func main() {
 
 	syncer := synchronizer.NewSynchronizer(log.NewEntry(log.StandardLogger()), namespace, secretManagerClient, clientSet)
 
+	secretCounter := time.NewTicker(1 * time.Second)
+
 	messages := pubsubClient.Consume(ctx)
 	for {
 		select {
@@ -97,6 +101,19 @@ func main() {
 			cancel()
 			if err != nil {
 				log.Errorf("synchronizing secret: %v", err)
+			}
+		case <-secretCounter.C:
+			log.Debugf("reporting total number of managed secrets...")
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			secrets, err := syncer.ManagedSecrets(ctx)
+			cancel()
+
+			secretCounter.Reset(viper.GetDuration(ReportInterval))
+
+			if err != nil {
+				log.Errorf("list managed secrets from cluster: %s", err)
+			} else {
+				metrics.ManagedSecrets.Set(float64(len(secrets)))
 			}
 		case <-stopChan:
 			return
@@ -123,6 +140,7 @@ func serve(address string) {
 
 	prometheus.MustRegister(metrics.Requests)
 	prometheus.MustRegister(metrics.GoogleSecretManagerResponseTime)
+	prometheus.MustRegister(metrics.ManagedSecrets)
 	metrics.InitLabels()
 
 	http.Handle("/metrics", promhttp.Handler())

@@ -14,28 +14,37 @@ import (
 
 type PubSubClient struct {
 	*pubsub.Subscription
+	ResourceManagerClient
 }
 
 type PubSubMessage interface {
 	Ack()
+	GetNamespace() string
 	GetPrincipalEmail() string
+	GetProjectID() string
 	GetSecretName() string
 	GetSecretVersion() string
 	GetTimestamp() time.Time
 }
 
 type pubSubMessage struct {
+	Namespace  string
+	ProjectID  string
 	SecretName string
 	LogMessage logMessage
 	pubsub.Message
 }
 
-func (p *pubSubMessage) GetTimestamp() time.Time {
-	return p.LogMessage.Timestamp
+func (p *pubSubMessage) GetNamespace() string {
+	return p.Namespace
 }
 
 func (p *pubSubMessage) GetPrincipalEmail() string {
 	return p.LogMessage.ProtoPayload.AuthenticationInfo.PrincipalEmail
+}
+
+func (p *pubSubMessage) GetProjectID() string {
+	return p.ProjectID
 }
 
 func (p *pubSubMessage) GetSecretName() string {
@@ -44,6 +53,10 @@ func (p *pubSubMessage) GetSecretName() string {
 
 func (p *pubSubMessage) GetSecretVersion() string {
 	return ParseSecretVersion(p.LogMessage.ProtoPayload.ResourceName)
+}
+
+func (p *pubSubMessage) GetTimestamp() time.Time {
+	return p.LogMessage.Timestamp
 }
 
 type logMessage struct {
@@ -56,13 +69,13 @@ type logMessage struct {
 	} `json:"protoPayload"`
 }
 
-func NewPubSubClient(ctx context.Context, projectID, subscriptionID string) (*PubSubClient, error) {
+func NewPubSubClient(ctx context.Context, projectID, subscriptionID string, resourceManagerClient ResourceManagerClient) (*PubSubClient, error) {
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("creating pubsub client: %w", err)
 	}
 	sub := client.Subscription(subscriptionID)
-	return &PubSubClient{sub}, nil
+	return &PubSubClient{Subscription: sub, ResourceManagerClient: resourceManagerClient}, nil
 }
 
 func ParseSecretName(resourceName string) (string, error) {
@@ -81,6 +94,14 @@ func ParseSecretVersion(resourceName string) string {
 	return tokens[5]
 }
 
+func ParseProjectID(resourceName string) (string, error) {
+	tokens := strings.Split(resourceName, "/")
+	if len(tokens) < 4 || tokens[0] != "projects" || tokens[2] != "secrets" {
+		return "", fmt.Errorf("resource name does not contain a secret")
+	}
+	return tokens[1], nil
+}
+
 func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 	messages := make(chan PubSubMessage)
 
@@ -92,19 +113,37 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 		err := in.Receive(cctx, func(ctx context.Context, msg *pubsub.Message) {
 			var logMessage logMessage
 			var secretName string
+			var projectID string
+			var namespace string
+
 			err := json.Unmarshal(msg.Data, &logMessage)
 			if err != nil {
 				metrics.LogRequest(metrics.SystemPubSub, metrics.OperationRead, metrics.StatusInvalidData)
-				log.Warnf("failed to unmarshal message: %v", err)
+				log.Warnf("unmarshalling message: %v", err)
 				return
 			}
+
 			secretName, err = ParseSecretName(logMessage.ProtoPayload.ResourceName)
 			if err != nil {
 				metrics.LogRequest(metrics.SystemPubSub, metrics.OperationRead, metrics.StatusInvalidData)
-				log.Errorf("invalid message format: %v", err)
+				log.Errorf("parsing secret name: %v", err)
 				return
 			}
+
+			projectID, err = ParseProjectID(logMessage.ProtoPayload.ResourceName)
+			if err != nil {
+				log.Errorf("parsing project ID: %v", err)
+				return
+			}
+
+			namespace, err = in.GetProjectName(ctx, projectID)
+			if err != nil {
+				log.Errorf("looking up project name: %v", err)
+			}
+
 			messages <- &pubSubMessage{
+				Namespace:  namespace,
+				ProjectID:  projectID,
 				SecretName: secretName,
 				LogMessage: logMessage,
 				Message:    *msg,

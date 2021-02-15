@@ -43,7 +43,6 @@ resource.type="audited_resource"
   AND resource.labels.method=(
     "google.cloud.secretmanager.v1.SecretManagerService.AddSecretVersion"
     OR "google.cloud.secretmanager.v1.SecretManagerService.DeleteSecret"
-    OR "google.cloud.secretmanager.v1.SecretManagerService.CreateSecret"
   )
 ```
 
@@ -60,7 +59,7 @@ The associated Google Service Account must be set up with the permissions and ro
 ```yaml
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: hunter2
   namespace: {{ .name }}
@@ -95,7 +94,6 @@ Set up the required environment variables
 HUNTER2_GOOGLE_PROJECT_ID=some-id
 HUNTER2_GOOGLE_PUBSUB_SUBSCRIPTION_ID=some-subscription-id
 HUNTER2_DEBUG=false
-HUNTER2_NAMESPACE=default
 HUNTER2_KUBECONFIG_PATH=$KUBECONFIG
 GOOGLE_APPLICATION_CREDENTIALS=/Users/<user>/.config/gcloud/application_default_credentials.json
 ```

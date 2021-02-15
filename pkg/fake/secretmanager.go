@@ -12,14 +12,14 @@ type secretManagerClientImpl struct {
 	err      error
 }
 
-func (s *secretManagerClientImpl) GetSecretMetadata(context.Context, string) (*secretmanagerpb.Secret, error) {
+func (s *secretManagerClientImpl) GetSecretMetadata(context.Context, string, string) (*secretmanagerpb.Secret, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return s.metadata, nil
 }
 
-func (s *secretManagerClientImpl) GetSecretData(context.Context, string) ([]byte, error) {
+func (s *secretManagerClientImpl) GetSecretData(context.Context, string, string) ([]byte, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

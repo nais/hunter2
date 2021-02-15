@@ -26,6 +26,7 @@ func init() {
 var (
 	logger           = log.NewEntry(log.StandardLogger())
 	kubernetesClient = kubernetesFake.NewSimpleClientset()
+	projectID        = "12345678"
 	namespace        = "some-namespace"
 	principalEmail   = "some-principal@domain.test"
 	secretName       = "some-secret"
@@ -50,11 +51,11 @@ var (
 )
 
 func TestToSecretData(t *testing.T) {
-	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
+	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, namespace, projectID, timestamp)
 	payload, err := synchronizer.SecretPayload(metadata, genericPayload)
 	assert.NoError(t, err)
 
-	secretData := synchronizer.ToSecretData(namespace, msg, payload)
+	secretData := synchronizer.ToSecretData(msg, payload)
 
 	assert.Equal(t, secretData.Namespace, namespace)
 	assert.Equal(t, secretData.Name, secretName)
@@ -74,9 +75,9 @@ func TestToSecretDataWithEnv(t *testing.T) {
 }
 
 func TestSynchronizer_Sync_CreateNewSecret(t *testing.T) {
-	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
+	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, namespace, projectID, timestamp)
 	secretManagerClient := fake.NewSecretManagerClient(genericPayload, metadata, nil)
-	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
+	syncer := synchronizer.NewSynchronizer(logger, secretManagerClient, kubernetesClient)
 
 	err := syncer.Sync(ctx, msg)
 	assert.NoError(t, err)
@@ -100,8 +101,8 @@ func TestSynchronizer_Sync_UpdateExistingSecret(t *testing.T) {
 	secretVersion = "2"
 
 	secretManagerClient := fake.NewSecretManagerClient(genericPayload, metadata, nil)
-	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
-	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
+	syncer := synchronizer.NewSynchronizer(logger, secretManagerClient, kubernetesClient)
+	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, namespace, projectID, timestamp)
 
 	err := syncer.Sync(ctx, msg)
 	assert.NoError(t, err)
@@ -128,9 +129,9 @@ func TestSynchronizer_Sync_SkipNonOwnedSecret(t *testing.T) {
 	_, err := kubernetesClient.CoreV1().Secrets(namespace).Create(ctx, nonOwnedSecret, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
-	msg := fake.NewPubSubMessage(principalEmail, nonOwnedSecretName, secretVersion, timestamp)
+	msg := fake.NewPubSubMessage(principalEmail, nonOwnedSecretName, secretVersion, namespace, projectID, timestamp)
 	secretManagerClient := fake.NewSecretManagerClient(genericPayload, metadata, nil)
-	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
+	syncer := synchronizer.NewSynchronizer(logger, secretManagerClient, kubernetesClient)
 
 	err = syncer.Sync(ctx, msg)
 	assert.Error(t, err)
@@ -145,9 +146,9 @@ func TestSynchronizer_Sync_SkipNonMatchingLabels(t *testing.T) {
 	nonMatchingMetadata := metadata
 	nonMatchingMetadata.Labels = map[string]string{"some-key": "some-value"}
 
-	msg := fake.NewPubSubMessage(principalEmail, nonMatchingSecretName, secretVersion, timestamp)
+	msg := fake.NewPubSubMessage(principalEmail, nonMatchingSecretName, secretVersion, namespace, projectID, timestamp)
 	secretManagerClient := fake.NewSecretManagerClient(genericPayload, metadata, nil)
-	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
+	syncer := synchronizer.NewSynchronizer(logger, secretManagerClient, kubernetesClient)
 
 	err := syncer.Sync(ctx, msg)
 	assert.NoError(t, err)
@@ -158,9 +159,9 @@ func TestSynchronizer_Sync_SkipNonMatchingLabels(t *testing.T) {
 }
 
 func TestSynchronizer_Sync_DeleteNotFoundSecret(t *testing.T) {
-	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, timestamp)
+	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, namespace, projectID, timestamp)
 	secretManagerClient := fake.NewSecretManagerClient(genericPayload, metadata, status.Error(codes.NotFound, "secret not found"))
-	syncer := synchronizer.NewSynchronizer(logger, namespace, secretManagerClient, kubernetesClient)
+	syncer := synchronizer.NewSynchronizer(logger, secretManagerClient, kubernetesClient)
 
 	err := syncer.Sync(ctx, msg)
 	assert.NoError(t, err)

@@ -27,27 +27,36 @@ const (
 
 type Synchronizer struct {
 	logger              *log.Entry
-	namespace           string
 	secretManagerClient google.SecretManagerClient
 	clientset           kubernetes2.Interface
 }
 
-func NewSynchronizer(logger *log.Entry, namespace string, secretManagerClient google.SecretManagerClient, clientSet kubernetes2.Interface) *Synchronizer {
-	return &Synchronizer{logger: logger, namespace: namespace, secretManagerClient: secretManagerClient, clientset: clientSet}
+func NewSynchronizer(logger *log.Entry, secretManagerClient google.SecretManagerClient, clientSet kubernetes2.Interface) *Synchronizer {
+	return &Synchronizer{logger: logger, secretManagerClient: secretManagerClient, clientset: clientSet}
 }
 
 func (in *Synchronizer) ManagedSecrets(ctx context.Context) ([]corev1.Secret, error) {
 	labelSelector := fmt.Sprintf("%s=%s", kubernetes.CreatedBy, kubernetes.CreatedByValue)
 
-	secrets, err := in.clientset.CoreV1().Secrets(in.namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: labelSelector,
+	managedSecrets := make([]corev1.Secret, 0)
 
-	})
+	namespaces, err := in.clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("listing namespaces: %v", err)
 	}
 
-	return secrets.Items, nil
+	for _, namespace := range namespaces.Items {
+		secrets, err := in.clientset.CoreV1().Secrets(namespace.Name).List(ctx, metav1.ListOptions{
+			LabelSelector: labelSelector,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("listing managed secrets for namespace %s: %v", namespace.Name, err)
+		}
+
+		managedSecrets = append(managedSecrets, secrets.Items...)
+	}
+
+	return managedSecrets, nil
 }
 
 func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) error {
@@ -55,6 +64,8 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 		"secretName":     msg.GetSecretName(),
 		"secretVersion":  msg.GetSecretVersion(),
 		"principalEmail": msg.GetPrincipalEmail(),
+		"projectID":      msg.GetProjectID(),
+		"namespace":      msg.GetNamespace(),
 	})
 
 	if err := in.skipNonOwnedSecrets(ctx, msg); err != nil {
@@ -62,7 +73,7 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	}
 
 	in.logger.Debugf("fetching secret metadata for secret: %s", msg.GetSecretName())
-	metadata, err := in.secretManagerClient.GetSecretMetadata(ctx, msg.GetSecretName())
+	metadata, err := in.secretManagerClient.GetSecretMetadata(ctx, msg.GetProjectID(), msg.GetSecretName())
 	if err == nil {
 		if !secretContainsMatchingLabels(metadata) {
 			metrics.LogRequest(metrics.SystemSecretManager, metrics.OperationRead, metrics.StatusNoSyncLabel)
@@ -78,14 +89,14 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 	}
 
 	in.logger.Debugf("fetching secret data for secret: %s", msg.GetSecretName())
-	raw, err := in.secretManagerClient.GetSecretData(ctx, msg.GetSecretName())
+	raw, err := in.secretManagerClient.GetSecretData(ctx, msg.GetProjectID(), msg.GetSecretName())
 	if err != nil {
 		if err = in.ignoreNotFound(err); err != nil {
 			metrics.LogRequest(metrics.SystemSecretManager, metrics.OperationRead, metrics.StatusError)
 			return fmt.Errorf("while accessing secret manager secret: %w", err)
 		}
 		// delete secret if not found in secret manager
-		err = in.deleteKubernetesSecret(ctx, msg.GetSecretName())
+		err = in.deleteKubernetesSecret(ctx, msg)
 	} else {
 		payload, err := SecretPayload(metadata, raw)
 		metrics.LogRequest(metrics.SystemSecretManager, metrics.OperationRead, metrics.ErrorStatus(err, metrics.StatusInvalidData))
@@ -106,7 +117,7 @@ func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) erro
 }
 
 func (in *Synchronizer) skipNonOwnedSecrets(ctx context.Context, msg google.PubSubMessage) error {
-	secret, err := in.clientset.CoreV1().Secrets(in.namespace).Get(ctx, msg.GetSecretName(), metav1.GetOptions{})
+	secret, err := in.clientset.CoreV1().Secrets(msg.GetNamespace()).Get(ctx, msg.GetSecretName(), metav1.GetOptions{})
 	switch {
 	case err == nil && !kubernetes.IsOwned(*secret):
 		msg.Ack()
@@ -131,12 +142,12 @@ func (in *Synchronizer) ignoreNotFound(err error) error {
 }
 
 func (in *Synchronizer) createOrUpdateKubernetesSecret(ctx context.Context, msg google.PubSubMessage, payload map[string]string) error {
-	secret := kubernetes.OpaqueSecret(ToSecretData(in.namespace, msg, payload))
+	secret := kubernetes.OpaqueSecret(ToSecretData(msg, payload))
 	in.logger.Debugf("creating/updating k8s secret '%s'", msg.GetSecretName())
 
-	_, err := in.clientset.CoreV1().Secrets(in.namespace).Create(ctx, secret, metav1.CreateOptions{})
+	_, err := in.clientset.CoreV1().Secrets(msg.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil && errors.IsAlreadyExists(err) {
-		_, err = in.clientset.CoreV1().Secrets(in.namespace).Update(ctx, secret, metav1.UpdateOptions{})
+		_, err = in.clientset.CoreV1().Secrets(msg.GetNamespace()).Update(ctx, secret, metav1.UpdateOptions{})
 		metrics.LogRequest(metrics.SystemKubernetes, metrics.OperationUpdate, metrics.ErrorStatus(err, metrics.StatusError))
 		return err
 	}
@@ -145,9 +156,9 @@ func (in *Synchronizer) createOrUpdateKubernetesSecret(ctx context.Context, msg 
 	return err
 }
 
-func (in *Synchronizer) deleteKubernetesSecret(ctx context.Context, name string) error {
-	in.logger.Debugf("deleting k8s secret '%s'", name)
-	err := in.clientset.CoreV1().Secrets(in.namespace).Delete(ctx, name, metav1.DeleteOptions{})
+func (in *Synchronizer) deleteKubernetesSecret(ctx context.Context, msg google.PubSubMessage) error {
+	in.logger.Debugf("deleting k8s secret '%s'", msg.GetSecretName())
+	err := in.clientset.CoreV1().Secrets(msg.GetNamespace()).Delete(ctx, msg.GetSecretName(), metav1.DeleteOptions{})
 	if err != nil && errors.IsNotFound(err) {
 		return nil
 	}
@@ -157,10 +168,10 @@ func (in *Synchronizer) deleteKubernetesSecret(ctx context.Context, name string)
 	return err
 }
 
-func ToSecretData(namespace string, msg google.PubSubMessage, payload map[string]string) kubernetes.SecretData {
+func ToSecretData(msg google.PubSubMessage, payload map[string]string) kubernetes.SecretData {
 	return kubernetes.SecretData{
 		Name:           msg.GetSecretName(),
-		Namespace:      namespace,
+		Namespace:      msg.GetNamespace(),
 		LastModified:   msg.GetTimestamp(),
 		LastModifiedBy: msg.GetPrincipalEmail(),
 		SecretVersion:  msg.GetSecretVersion(),

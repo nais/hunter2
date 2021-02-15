@@ -29,7 +29,6 @@ const (
 	Debug                      = "debug"
 	GoogleProjectID            = "google-project-id"
 	GooglePubsubSubscriptionID = "google-pubsub-subscription-id"
-	Namespace                  = "namespace"
 	ReportInterval             = "report-interval"
 )
 
@@ -43,7 +42,6 @@ func init() {
 	flag.String(GoogleProjectID, "", "GCP project ID.")
 	flag.String(GooglePubsubSubscriptionID, "", "GCP subscription ID for the PubSub topic to consume from.")
 	flag.String(KubeconfigPath, "", "path to Kubernetes config file")
-	flag.String(Namespace, "", "Kubernetes namespace that the application operates in.")
 	flag.Duration(ReportInterval, 5*time.Minute, "How often to collect number of Kubernetes secrets in cluster")
 
 	flag.Parse()
@@ -70,19 +68,23 @@ func main() {
 	ctx := context.Background()
 	googleProjectID := viper.GetString(GoogleProjectID)
 	googlePubsubSubscriptionID := viper.GetString(GooglePubsubSubscriptionID)
-	namespace := viper.GetString(Namespace)
 
-	pubsubClient, err := google.NewPubSubClient(ctx, googleProjectID, googlePubsubSubscriptionID)
+	resourceManagerClient, err := google.NewResourceManagerClient(ctx)
 	if err != nil {
 		log.Fatalf("getting pubsubclient: %v", err)
 	}
 
-	secretManagerClient, err := google.NewSecretManagerClient(ctx, googleProjectID)
+	pubsubClient, err := google.NewPubSubClient(ctx, googleProjectID, googlePubsubSubscriptionID, resourceManagerClient)
+	if err != nil {
+		log.Fatalf("getting resource manager client: %v", err)
+	}
+
+	secretManagerClient, err := google.NewSecretManagerClient(ctx)
 	if err != nil {
 		log.Fatalf("getting secret manager client: %v", err)
 	}
 
-	syncer := synchronizer.NewSynchronizer(log.NewEntry(log.StandardLogger()), namespace, secretManagerClient, clientSet)
+	syncer := synchronizer.NewSynchronizer(log.NewEntry(log.StandardLogger()), secretManagerClient, clientSet)
 
 	secretCounter := time.NewTicker(1 * time.Second)
 

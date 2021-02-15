@@ -59,3 +59,27 @@ func TestParseSecretVersion(t *testing.T) {
 		assert.Equal(t, test.output, output)
 	}
 }
+
+var projectIDTests = []testcase{
+	{
+		input:  "projects/12345/secrets/foobar",
+		output: "12345",
+	},
+	{
+		input:  "projects/12345/secrets/foobar/versions/2",
+		output: "12345",
+	},
+	{
+		input:  "projects/12345/secrets",
+		output: "",
+		err:    fmt.Errorf("resource name does not contain a secret"),
+	},
+}
+
+func TestParseProjectID(t *testing.T) {
+	for _, test := range projectIDTests {
+		output, err := google.ParseProjectID(test.input)
+		assert.Equal(t, test.output, output)
+		assert.Equal(t, test.err, err)
+	}
+}

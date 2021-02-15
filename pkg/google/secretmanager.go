@@ -11,25 +11,24 @@ import (
 )
 
 type SecretManagerClient interface {
-	GetSecretData(ctx context.Context, projectID string) ([]byte, error)
-	GetSecretMetadata(ctx context.Context, secretName string) (*secretmanagerpb.Secret, error)
+	GetSecretData(ctx context.Context, projectID, secretName string) ([]byte, error)
+	GetSecretMetadata(ctx context.Context, projectID, secretName string) (*secretmanagerpb.Secret, error)
 }
 
 type secretManagerClient struct {
 	*secretmanager.Client
-	projectID string
 }
 
-func NewSecretManagerClient(ctx context.Context, projectID string) (SecretManagerClient, error) {
+func NewSecretManagerClient(ctx context.Context) (SecretManagerClient, error) {
 	client, err := secretmanager.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("creating secret manager client: %w", err)
 	}
-	return &secretManagerClient{client, projectID}, nil
+	return &secretManagerClient{client}, nil
 }
 
-func (in *secretManagerClient) GetSecretData(ctx context.Context, secretName string) ([]byte, error) {
-	req := ToAccessSecretVersionRequest(in.projectID, secretName)
+func (in *secretManagerClient) GetSecretData(ctx context.Context, projectID, secretName string) ([]byte, error) {
+	req := ToAccessSecretVersionRequest(projectID, secretName)
 	start := time.Now()
 	result, err := in.AccessSecretVersion(ctx, req)
 	responseTime := time.Now().Sub(start)
@@ -40,8 +39,8 @@ func (in *secretManagerClient) GetSecretData(ctx context.Context, secretName str
 	return result.Payload.Data, nil
 }
 
-func (in *secretManagerClient) GetSecretMetadata(ctx context.Context, secretName string) (*secretmanagerpb.Secret, error) {
-	req := ToGetSecretRequest(in.projectID, secretName)
+func (in *secretManagerClient) GetSecretMetadata(ctx context.Context, projectID, secretName string) (*secretmanagerpb.Secret, error) {
+	req := ToGetSecretRequest(projectID, secretName)
 	start := time.Now()
 	secret, err := in.GetSecret(ctx, req)
 	responseTime := time.Now().Sub(start)

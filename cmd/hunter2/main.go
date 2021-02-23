@@ -86,7 +86,7 @@ func main() {
 
 	syncer := synchronizer.NewSynchronizer(log.NewEntry(log.StandardLogger()), secretManagerClient, clientSet)
 
-	secretCounter := time.NewTicker(1 * time.Second)
+	secretCounter := time.NewTicker(30 * time.Second)
 
 	messages := pubsubClient.Consume(ctx)
 	for {
@@ -106,7 +106,7 @@ func main() {
 			}
 		case <-secretCounter.C:
 			log.Debugf("reporting total number of managed secrets...")
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 			secrets, err := syncer.ManagedSecrets(ctx)
 			cancel()
 

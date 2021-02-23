@@ -20,8 +20,7 @@ func (r *resourceManagerClient) GetProjectName(ctx context.Context, projectID st
 	if err != nil {
 		return "", fmt.Errorf("fetching project: %v", err)
 	}
-	projectNameParts := strings.Split(project.Name, "-")
-	return projectNameParts[0], nil
+	return ExtractProjectName(project.Name), nil
 }
 
 func NewResourceManagerClient(ctx context.Context) (ResourceManagerClient, error) {
@@ -30,4 +29,14 @@ func NewResourceManagerClient(ctx context.Context) (ResourceManagerClient, error
 		return nil, fmt.Errorf("creating resource manager service: %w", err)
 	}
 	return &resourceManagerClient{service}, nil
+}
+
+func ExtractProjectName(projectName string) string {
+	lastIndexOfDash := strings.LastIndex(projectName, "-")
+
+	if lastIndexOfDash > -1 {
+		return projectName[:lastIndexOfDash]
+	}
+
+	return projectName
 }

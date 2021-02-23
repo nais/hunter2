@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/api/cloudresourcemanager/v1"
+	"strings"
 )
 
 type ResourceManagerClient interface {
@@ -19,7 +20,8 @@ func (r *resourceManagerClient) GetProjectName(ctx context.Context, projectID st
 	if err != nil {
 		return "", fmt.Errorf("fetching project: %v", err)
 	}
-	return project.Name, nil
+	projectNameParts := strings.Split(project.Name, "-")
+	return projectNameParts[0], nil
 }
 
 func NewResourceManagerClient(ctx context.Context) (ResourceManagerClient, error) {

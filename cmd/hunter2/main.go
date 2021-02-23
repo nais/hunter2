@@ -106,7 +106,7 @@ func main() {
 			}
 		case <-secretCounter.C:
 			log.Debugf("reporting total number of managed secrets...")
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 			secrets, err := syncer.ManagedSecrets(ctx)
 			cancel()
 

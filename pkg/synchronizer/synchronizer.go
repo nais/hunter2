@@ -38,25 +38,14 @@ func NewSynchronizer(logger *log.Entry, secretManagerClient google.SecretManager
 func (in *Synchronizer) ManagedSecrets(ctx context.Context) ([]corev1.Secret, error) {
 	labelSelector := fmt.Sprintf("%s=%s", kubernetes.CreatedBy, kubernetes.CreatedByValue)
 
-	managedSecrets := make([]corev1.Secret, 0)
-
-	namespaces, err := in.clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	secrets, err := in.clientset.CoreV1().Secrets("").List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("listing namespaces: %v", err)
+		return nil, fmt.Errorf("listing managed secrets: %v", err)
 	}
 
-	for _, namespace := range namespaces.Items {
-		secrets, err := in.clientset.CoreV1().Secrets(namespace.Name).List(ctx, metav1.ListOptions{
-			LabelSelector: labelSelector,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("listing managed secrets for namespace %s: %v", namespace.Name, err)
-		}
-
-		managedSecrets = append(managedSecrets, secrets.Items...)
-	}
-
-	return managedSecrets, nil
+	return secrets.Items, nil
 }
 
 func (in *Synchronizer) Sync(ctx context.Context, msg google.PubSubMessage) error {

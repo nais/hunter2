@@ -3,6 +3,7 @@ package synchronizer
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -168,7 +169,8 @@ func ToSecretData(msg google.PubSubMessage, payload map[string]string) kubernete
 	}
 }
 
-func parseSecretEnvironmentVariables(data string) (map[string]string, error) {
+func ParseSecretEnvironmentVariables(data string) (map[string]string, error) {
+	pattern := `^[a-zA-Z0-9-_.]+$`
 	env := make(map[string]string)
 	lines := strings.Split(data, "\n")
 	for n, line := range lines {
@@ -182,6 +184,10 @@ func parseSecretEnvironmentVariables(data string) (map[string]string, error) {
 		}
 		key := keyval[0]
 		val := keyval[1]
+		validKey, _ := regexp.MatchString(pattern, key)
+		if !validKey {
+			return nil, fmt.Errorf("pattern: '%s' do not match for environment key: %s", pattern, key)
+		}
 		if _, ok := env[key]; ok {
 			return nil, fmt.Errorf("duplicate environment variable on line %d", n+1)
 		}
@@ -192,7 +198,7 @@ func parseSecretEnvironmentVariables(data string) (map[string]string, error) {
 
 func SecretPayload(metadata *secretmanagerpb.Secret, raw []byte) (map[string]string, error) {
 	if secretContainsEnvironmentVariables(metadata) {
-		return parseSecretEnvironmentVariables(string(raw))
+		return ParseSecretEnvironmentVariables(string(raw))
 	} else {
 		return map[string]string{
 			StaticSecretDataKey: string(raw),

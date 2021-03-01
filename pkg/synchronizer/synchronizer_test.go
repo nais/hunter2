@@ -2,6 +2,8 @@ package synchronizer_test
 
 import (
 	"context"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -169,4 +171,25 @@ func TestSynchronizer_Sync_DeleteNotFoundSecret(t *testing.T) {
 	_, err = kubernetesClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	assert.Error(t, err)
 	assert.True(t, errors.IsNotFound(err))
+}
+
+func TestParseSecretEnvironmentVariables(t *testing.T) {
+	validMetadata := "KEY.VALUE=VALUE\nKEY-VALUE=VALUE\nKEY_VALUE=VALUE\nKEY0VALUE=VALUE"
+	result, _ := synchronizer.ParseSecretEnvironmentVariables(validMetadata)
+
+	lines := strings.Split(validMetadata, "\n")
+	envs := make(map[string]string)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		keyval := strings.SplitN(line, "=", 2)
+		envs[keyval[0]] = keyval[1]
+	}
+	assert.True(t, len(lines) == len(result))
+	assert.True(t, reflect.DeepEqual(envs, result))
+
+	noneValidMetadata := "KEY$VALUE=VALUE"
+	result, err := synchronizer.ParseSecretEnvironmentVariables(noneValidMetadata)
+	expectedErrorMsg := "pattern: '^[a-zA-Z0-9-_.]+$' do not match for environment key: KEY$VALUE"
+	assert.EqualErrorf(t, err, expectedErrorMsg, "Error should be: %v, got: %v", expectedErrorMsg, err)
+	assert.True(t, len(result) == 0)
 }

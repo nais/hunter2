@@ -24,6 +24,8 @@ const (
 	StaticSecretDataKey    = "secret"
 	MatchingSecretLabelKey = "sync"
 	SecretContainsEnvKey   = "env"
+	MultilineSecretLabel   = "multiline"
+	Pattern                = `^[a-zA-Z0-9-_.]+$`
 )
 
 type Synchronizer struct {
@@ -170,9 +172,18 @@ func ToSecretData(msg google.PubSubMessage, payload map[string]string) kubernete
 }
 
 func ParseSecretEnvironmentVariables(data string) (map[string]string, error) {
-	pattern := `^[a-zA-Z0-9-_.]+$`
-	env := make(map[string]string)
 	lines := strings.Split(data, "\n")
+	return ParseSecrets(lines)
+}
+
+// multiline: true
+func ParsMultiLineEnvironmentVariables(data string) (map[string]string, error) {
+	lines := strings.Split(data, "&")
+	return ParseSecrets(lines)
+}
+
+func ParseSecrets(lines []string) (map[string]string, error) {
+	env := make(map[string]string)
 	for n, line := range lines {
 		line = strings.TrimSpace(line)
 		if len(line) == 0 || line[0] == '#' { // remove empty lines and comments
@@ -184,9 +195,9 @@ func ParseSecretEnvironmentVariables(data string) (map[string]string, error) {
 		}
 		key := keyval[0]
 		val := keyval[1]
-		validKey, _ := regexp.MatchString(pattern, key)
+		validKey, _ := regexp.MatchString(Pattern, key)
 		if !validKey {
-			return nil, fmt.Errorf("pattern: '%s' do not match for environment key: %s", pattern, key)
+			return nil, fmt.Errorf("pattern: '%s' do not match for environment key: %s", Pattern, key)
 		}
 		if _, ok := env[key]; ok {
 			return nil, fmt.Errorf("duplicate environment variable on line %d", n+1)
@@ -199,6 +210,8 @@ func ParseSecretEnvironmentVariables(data string) (map[string]string, error) {
 func SecretPayload(metadata *secretmanagerpb.Secret, raw []byte) (map[string]string, error) {
 	if secretContainsEnvironmentVariables(metadata) {
 		return ParseSecretEnvironmentVariables(string(raw))
+	} else if secretContainsMultiLineEnvironmentVariables(metadata) {
+		return ParsMultiLineEnvironmentVariables(string(raw))
 	} else {
 		return map[string]string{
 			StaticSecretDataKey: string(raw),
@@ -218,4 +231,8 @@ func secretContainsMatchingLabels(metadata *secretmanagerpb.Secret) bool {
 
 func secretContainsEnvironmentVariables(metadata *secretmanagerpb.Secret) bool {
 	return secretLabelEnabled(metadata, SecretContainsEnvKey)
+}
+
+func secretContainsMultiLineEnvironmentVariables(metadata *secretmanagerpb.Secret) bool {
+	return secretLabelEnabled(metadata, MultilineSecretLabel)
 }

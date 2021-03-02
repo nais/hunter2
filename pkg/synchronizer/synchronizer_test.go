@@ -174,7 +174,7 @@ func TestSynchronizer_Sync_DeleteNotFoundSecret(t *testing.T) {
 }
 
 func TestParseSecretEnvironmentVariables(t *testing.T) {
-	validMetadata := "KEY.VALUE=VALUE\nKEY-VALUE=VALUE\nKEY_VALUE=VALUE\nKEY0VALUE=VALUE"
+	validMetadata := "KEY.VALUE=VALUE\nKEY-VALUE=VALUE\nKEY_VALUE=VALUE\nKEY0VALUE=VALUE\nkey_VALUE.s=VALUE"
 	result, _ := synchronizer.ParseSecretEnvironmentVariables(validMetadata)
 
 	lines := strings.Split(validMetadata, "\n")
@@ -192,4 +192,10 @@ func TestParseSecretEnvironmentVariables(t *testing.T) {
 	expectedErrorMsg := "pattern: '^[a-zA-Z0-9-_.]+$' do not match for environment key: KEY$VALUE"
 	assert.EqualErrorf(t, err, expectedErrorMsg, "Error should be: %v, got: %v", expectedErrorMsg, err)
 	assert.True(t, len(result) == 0)
+}
+
+func TestParsMultiLineEnvironmentVariables(t *testing.T) {
+	validMetadata := "FIRST_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----\n && OTHER_KEY=VALUE"
+	result, _ := synchronizer.ParsMultiLineEnvironmentVariables(validMetadata)
+	assert.True(t, len(result) == 2)
 }

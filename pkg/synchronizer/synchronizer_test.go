@@ -198,4 +198,6 @@ func TestParsMultiLineEnvironmentVariables(t *testing.T) {
 	validMetadata := "FIRST_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----\n && OTHER_KEY=VALUE"
 	result, _ := synchronizer.ParsMultiLineEnvironmentVariables(validMetadata)
 	assert.True(t, len(result) == 2)
+	assert.True(t, result["FIRST_KEY"] == "-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----")
+	assert.True(t, result["OTHER_KEY"] == "VALUE")
 }

@@ -178,7 +178,7 @@ func ParseSecretEnvironmentVariables(data string) (map[string]string, error) {
 
 // multiline: true
 func ParsMultiLineEnvironmentVariables(data string) (map[string]string, error) {
-	lines := strings.Split(data, "&")
+	lines := strings.Split(data, "\\")
 	return ParseSecrets(lines)
 }
 

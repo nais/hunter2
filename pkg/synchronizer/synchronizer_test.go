@@ -26,18 +26,19 @@ func init() {
 }
 
 var (
-	logger           = log.NewEntry(log.StandardLogger())
-	kubernetesClient = kubernetesFake.NewSimpleClientset()
-	projectID        = "12345678"
-	namespace        = "some-namespace"
-	principalEmail   = "some-principal@domain.test"
-	secretName       = "some-secret"
-	secretVersion    = "1"
-	timestamp        = time.Now()
-	ctx              = context.Background()
-	genericPayload   = []byte("some-payload")
-	envPayload       = []byte("FOO=BAR\nBAR=BAZ\n  # comment\n\n\n")
-	metadata         = &secretmanagerpb.Secret{
+	logger              = log.NewEntry(log.StandardLogger())
+	kubernetesClient    = kubernetesFake.NewSimpleClientset()
+	projectID           = "12345678"
+	namespace           = "some-namespace"
+	principalEmail      = "some-principal@domain.test"
+	secretName          = "some-secret"
+	secretVersion       = "1"
+	timestamp           = time.Now()
+	ctx                 = context.Background()
+	genericPayload      = []byte("some-payload")
+	envPayload          = []byte("FOO=BAR\nBAR=BAZ\n  # comment\n\n\n")
+	envMultilinePayload = []byte("FOO=BAR\nBAR\n\\BAR=BAZ\n  \\#comment\n\n\n")
+	metadata            = &secretmanagerpb.Secret{
 		Name: secretName,
 		Labels: map[string]string{
 			"sync": "true",
@@ -48,6 +49,13 @@ var (
 		Labels: map[string]string{
 			"sync": "true",
 			"env":  "true",
+		},
+	}
+	metadataWithMultilineEnv = &secretmanagerpb.Secret{
+		Name: secretName,
+		Labels: map[string]string{
+			"sync":      "true",
+			"multiline": "true",
 		},
 	}
 )
@@ -72,6 +80,15 @@ func TestToSecretDataWithEnv(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"FOO": "BAR",
+		"BAR": "BAZ",
+	}, payload)
+}
+
+func TestToSecretDataWithMultilineEnv(t *testing.T) {
+	payload, err := synchronizer.SecretPayload(metadataWithMultilineEnv, envMultilinePayload)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"FOO": "BAR\nBAR",
 		"BAR": "BAZ",
 	}, payload)
 }
@@ -179,11 +196,11 @@ func TestParseSecretEnvironmentVariables(t *testing.T) {
 	lines := strings.Split(validMetadata, "\n")
 
 	assert.True(t, len(lines) == len(result))
-	assert.True(t, result["KEY.VALUE"] == "VALUE")
-	assert.True(t, result["KEY-VALUE"] == "VALUE")
-	assert.True(t, result["KEY_VALUE"] == "VALUE")
-	assert.True(t, result["KEY0VALUE"] == "VALUE")
-	assert.True(t, result["key_VALUE.s"] == "VALUE")
+	assert.Equal(t, "VALUE", result["KEY.VALUE"])
+	assert.Equal(t, "VALUE", result["KEY-VALUE"])
+	assert.Equal(t, "VALUE", result["KEY_VALUE"])
+	assert.Equal(t, "VALUE", result["KEY0VALUE"])
+	assert.Equal(t, "VALUE", result["key_VALUE.s"])
 
 	noneValidMetadata := "KEY$VALUE=VALUE"
 	result, err := synchronizer.ParseSecretEnvironmentVariables(noneValidMetadata)
@@ -193,9 +210,14 @@ func TestParseSecretEnvironmentVariables(t *testing.T) {
 }
 
 func TestParsMultiLineEnvironmentVariables(t *testing.T) {
-	validMetadata := "FIRST_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----\n && OTHER_KEY=VALUE"
+	validMetadata := "FIRST_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----\n\\\nOTHER_KEY=VALUE"
 	result, _ := synchronizer.ParsMultiLineEnvironmentVariables(validMetadata)
 	assert.True(t, len(result) == 2)
-	assert.True(t, result["FIRST_KEY"] == "-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----")
-	assert.True(t, result["OTHER_KEY"] == "VALUE")
+	assert.Equal(t, "-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----", result["FIRST_KEY"])
+	assert.Equal(t, "VALUE", result["OTHER_KEY"])
+
+	validMetadataWithOnlyOneKey := "FIRST_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----\n"
+	result, _ = synchronizer.ParsMultiLineEnvironmentVariables(validMetadataWithOnlyOneKey)
+	assert.True(t, len(result) == 1)
+	assert.Equal(t, "-----BEGIN RSA PRIVATE KEY-----\nMIIEsomekey\n-----END RSA PRIVATE KEY-----", result["FIRST_KEY"])
 }

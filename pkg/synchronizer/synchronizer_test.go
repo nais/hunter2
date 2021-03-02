@@ -2,14 +2,10 @@ package synchronizer_test
 
 import (
 	"context"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/nais/hunter2/pkg/fake"
-	"github.com/nais/hunter2/pkg/kubernetes"
-	"github.com/nais/hunter2/pkg/synchronizer"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
@@ -19,6 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubernetesFake "k8s.io/client-go/kubernetes/fake"
+
+	"github.com/nais/hunter2/pkg/fake"
+	"github.com/nais/hunter2/pkg/kubernetes"
+	"github.com/nais/hunter2/pkg/synchronizer"
 )
 
 func init() {
@@ -176,16 +176,14 @@ func TestSynchronizer_Sync_DeleteNotFoundSecret(t *testing.T) {
 func TestParseSecretEnvironmentVariables(t *testing.T) {
 	validMetadata := "KEY.VALUE=VALUE\nKEY-VALUE=VALUE\nKEY_VALUE=VALUE\nKEY0VALUE=VALUE\nkey_VALUE.s=VALUE"
 	result, _ := synchronizer.ParseSecretEnvironmentVariables(validMetadata)
-
 	lines := strings.Split(validMetadata, "\n")
-	envs := make(map[string]string)
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		keyval := strings.SplitN(line, "=", 2)
-		envs[keyval[0]] = keyval[1]
-	}
+
 	assert.True(t, len(lines) == len(result))
-	assert.True(t, reflect.DeepEqual(envs, result))
+	assert.True(t, result["KEY.VALUE"] == "VALUE")
+	assert.True(t, result["KEY-VALUE"] == "VALUE")
+	assert.True(t, result["KEY_VALUE"] == "VALUE")
+	assert.True(t, result["KEY0VALUE"] == "VALUE")
+	assert.True(t, result["key_VALUE.s"] == "VALUE")
 
 	noneValidMetadata := "KEY$VALUE=VALUE"
 	result, err := synchronizer.ParseSecretEnvironmentVariables(noneValidMetadata)

@@ -74,6 +74,16 @@ func TestToSecretDataWithEnv(t *testing.T) {
 	}, payload)
 }
 
+func TestToEnvMultilineEncoded(t *testing.T) {
+	envPayload       = []byte("FOO=\"one line\\ntwo line\\n\"\n")
+	payload, err := synchronizer.SecretPayload(metadataWithEnv, envPayload)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"FOO": "one line\ntwo line\n",
+	}, payload)
+
+}
+
 func TestSynchronizer_Sync_CreateNewSecret(t *testing.T) {
 	msg := fake.NewPubSubMessage(principalEmail, secretName, secretVersion, namespace, projectID, timestamp)
 	secretManagerClient := fake.NewSecretManagerClient(genericPayload, metadata, nil)

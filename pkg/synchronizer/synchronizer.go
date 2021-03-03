@@ -167,14 +167,9 @@ func ToSecretData(msg google.PubSubMessage, payload map[string]string) kubernete
 	}
 }
 
-func parseSecretEnvironmentVariables(data string) (map[string]string, error) {
-	env, err := godotenv.Unmarshal(data);
-	return env, err
-}
-
 func SecretPayload(metadata *secretmanagerpb.Secret, raw []byte) (map[string]string, error) {
 	if secretContainsEnvironmentVariables(metadata) {
-		return parseSecretEnvironmentVariables(string(raw))
+		return godotenv.Unmarshal(string(raw))
 	} else {
 		return map[string]string{
 			StaticSecretDataKey: string(raw),

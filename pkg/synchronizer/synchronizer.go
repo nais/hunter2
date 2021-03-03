@@ -3,9 +3,7 @@ package synchronizer
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
-
+	"github.com/joho/godotenv"
 	"github.com/nais/hunter2/pkg/google"
 	"github.com/nais/hunter2/pkg/kubernetes"
 	"github.com/nais/hunter2/pkg/metrics"
@@ -17,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubernetes2 "k8s.io/client-go/kubernetes"
+	"strconv"
 )
 
 const (
@@ -168,31 +167,9 @@ func ToSecretData(msg google.PubSubMessage, payload map[string]string) kubernete
 	}
 }
 
-func parseSecretEnvironmentVariables(data string) (map[string]string, error) {
-	env := make(map[string]string)
-	lines := strings.Split(data, "\n")
-	for n, line := range lines {
-		line = strings.TrimSpace(line)
-		if len(line) == 0 || line[0] == '#' { // remove empty lines and comments
-			continue
-		}
-		keyval := strings.SplitN(line, "=", 2)
-		if len(keyval) != 2 {
-			return nil, fmt.Errorf("wrong environment variable format; expected KEY=VALUE")
-		}
-		key := keyval[0]
-		val := keyval[1]
-		if _, ok := env[key]; ok {
-			return nil, fmt.Errorf("duplicate environment variable on line %d", n+1)
-		}
-		env[key] = val
-	}
-	return env, nil
-}
-
 func SecretPayload(metadata *secretmanagerpb.Secret, raw []byte) (map[string]string, error) {
 	if secretContainsEnvironmentVariables(metadata) {
-		return parseSecretEnvironmentVariables(string(raw))
+		return godotenv.Unmarshal(string(raw))
 	} else {
 		return map[string]string{
 			StaticSecretDataKey: string(raw),

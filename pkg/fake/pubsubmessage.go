@@ -6,7 +6,6 @@ import (
 )
 
 type pubSubMessageImpl struct {
-	namespace      string
 	principalEmail string
 	projectID      string
 	secretName     string
@@ -16,10 +15,6 @@ type pubSubMessageImpl struct {
 
 func (p *pubSubMessageImpl) Ack() {
 	// no-op
-}
-
-func (p *pubSubMessageImpl) GetNamespace() string {
-	return p.namespace
 }
 
 func (p *pubSubMessageImpl) GetPrincipalEmail() string {
@@ -42,13 +37,12 @@ func (p *pubSubMessageImpl) GetTimestamp() time.Time {
 	return p.timestamp
 }
 
-func NewPubSubMessage(principalEmail, secretName, secretVersion, namespace, projectID string, timestamp time.Time) google.PubSubMessage {
+func NewPubSubMessage(principalEmail, secretName, secretVersion, projectID string, timestamp time.Time) google.PubSubMessage {
 	return &pubSubMessageImpl{
 		principalEmail: principalEmail,
 		secretName:     secretName,
 		secretVersion:  secretVersion,
 		timestamp:      timestamp,
-		namespace:      namespace,
 		projectID:      projectID,
 	}
 }

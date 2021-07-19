@@ -14,12 +14,10 @@ import (
 
 type PubSubClient struct {
 	*pubsub.Subscription
-	ResourceManagerClient
 }
 
 type PubSubMessage interface {
 	Ack()
-	GetNamespace() string
 	GetPrincipalEmail() string
 	GetProjectID() string
 	GetSecretName() string
@@ -28,15 +26,10 @@ type PubSubMessage interface {
 }
 
 type pubSubMessage struct {
-	Namespace  string
 	ProjectID  string
 	SecretName string
 	LogMessage logMessage
 	pubsub.Message
-}
-
-func (p *pubSubMessage) GetNamespace() string {
-	return p.Namespace
 }
 
 func (p *pubSubMessage) GetPrincipalEmail() string {
@@ -69,13 +62,13 @@ type logMessage struct {
 	} `json:"protoPayload"`
 }
 
-func NewPubSubClient(ctx context.Context, projectID, subscriptionID string, resourceManagerClient ResourceManagerClient) (*PubSubClient, error) {
+func NewPubSubClient(ctx context.Context, projectID, subscriptionID string) (*PubSubClient, error) {
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("creating pubsub client: %w", err)
 	}
 	sub := client.Subscription(subscriptionID)
-	return &PubSubClient{Subscription: sub, ResourceManagerClient: resourceManagerClient}, nil
+	return &PubSubClient{Subscription: sub}, nil
 }
 
 func ParseSecretName(resourceName string) (string, error) {
@@ -114,7 +107,6 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 			var logMessage logMessage
 			var secretName string
 			var projectID string
-			var namespace string
 
 			err := json.Unmarshal(msg.Data, &logMessage)
 			if err != nil {
@@ -136,19 +128,14 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 				return
 			}
 
-			namespace, err = in.GetProjectName(ctx, projectID)
-			if err != nil {
-				log.Errorf("looking up project name: %v", err)
-			}
-
 			messages <- &pubSubMessage{
-				Namespace:  namespace,
 				ProjectID:  projectID,
 				SecretName: secretName,
 				LogMessage: logMessage,
 				Message:    *msg,
 			}
 		})
+
 		metrics.LogRequest(metrics.SystemPubSub, metrics.OperationRead, metrics.ErrorStatus(err, metrics.StatusError))
 		if err != nil {
 			log.Errorf("pulling message from subscription: %v", err)

@@ -69,12 +69,7 @@ func main() {
 	googleProjectID := viper.GetString(GoogleProjectID)
 	googlePubsubSubscriptionID := viper.GetString(GooglePubsubSubscriptionID)
 
-	resourceManagerClient, err := google.NewResourceManagerClient(ctx)
-	if err != nil {
-		log.Fatalf("getting pubsubclient: %v", err)
-	}
-
-	pubsubClient, err := google.NewPubSubClient(ctx, googleProjectID, googlePubsubSubscriptionID, resourceManagerClient)
+	pubsubClient, err := google.NewPubSubClient(ctx, googleProjectID, googlePubsubSubscriptionID)
 	if err != nil {
 		log.Fatalf("getting resource manager client: %v", err)
 	}
@@ -84,7 +79,7 @@ func main() {
 		log.Fatalf("getting secret manager client: %v", err)
 	}
 
-	syncer := synchronizer.NewSynchronizer(log.NewEntry(log.StandardLogger()), secretManagerClient, clientSet)
+	syncer := synchronizer.NewSynchronizer(log.NewEntry(log.StandardLogger()), secretManagerClient, clientSet, nil)
 
 	secretCounter := time.NewTicker(1 * time.Second)
 

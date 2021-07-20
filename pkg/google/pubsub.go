@@ -60,6 +60,11 @@ type logMessage struct {
 			PrincipalEmail string `json:"principalEmail"`
 		} `json:"authenticationInfo"`
 	} `json:"protoPayload"`
+	Resource struct {
+		Labels struct {
+			ProjectID string `json:"project_id"`
+		} `json:"labels"`
+	} `json:"resource"`
 }
 
 func NewPubSubClient(ctx context.Context, projectID, subscriptionID string) (*PubSubClient, error) {
@@ -122,9 +127,9 @@ func (in *PubSubClient) Consume(ctx context.Context) chan PubSubMessage {
 				return
 			}
 
-			projectID, err = ParseProjectID(logMessage.ProtoPayload.ResourceName)
-			if err != nil {
-				log.Errorf("parsing project ID: %v", err)
+			projectID = logMessage.Resource.Labels.ProjectID
+			if projectID == "" {
+				log.Errorf("no project ID found in: %+v", logMessage)
 				return
 			}
 

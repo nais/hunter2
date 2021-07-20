@@ -14,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	kubernetes2 "k8s.io/client-go/kubernetes"
 	"strconv"
 )
@@ -23,6 +22,7 @@ const (
 	StaticSecretDataKey    = "secret"
 	MatchingSecretLabelKey = "sync"
 	SecretContainsEnvKey   = "env"
+	ProjectIDAnnotation    = "cnrm.cloud.google.com/project-id"
 )
 
 type Synchronizer struct {
@@ -183,27 +183,25 @@ func (in *Synchronizer) getNamespaceFromProjectID(ctx context.Context, projectID
 		return namespace, nil
 	}
 
-	labelSelector := labels.SelectorFromSet(map[string]string{
-		"cnrm.cloud.google.com/project-id": projectID,
-	})
-	opts := metav1.ListOptions{
-		LabelSelector: labelSelector.String(),
-	}
-	namespaces, err := in.clientset.CoreV1().Namespaces().List(ctx, opts)
+	log.Infof("cache miss for project id: %s, updating cache", projectID)
+
+	namespaces, err := in.clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return "", fmt.Errorf("listing namespaces: %+v", err)
 	}
 
-	if len(namespaces.Items) == 0 {
+	for _, namespace := range namespaces.Items {
+		if projectID, ok := namespace.Annotations[ProjectIDAnnotation]; ok {
+			in.projectNamespaceCache[projectID] = namespace.Name
+			log.Debugf("caching: %s=%s", projectID, namespace.Name)
+		}
+	}
+
+	if namespace, ok := in.projectNamespaceCache[projectID]; ok {
+		return namespace, nil
+	} else {
 		return "", fmt.Errorf("no namespace found for project ID: %s", projectID)
 	}
-
-	if len(namespaces.Items) > 1 {
-		return "", fmt.Errorf("too many namespace found for project ID: %v", namespaces.Items)
-	}
-
-	in.projectNamespaceCache[projectID] = namespaces.Items[0].Name
-	return namespaces.Items[0].Name, nil
 }
 
 func ToSecretData(msg google.PubSubMessage, namespace string, payload map[string]string) kubernetes.SecretData {

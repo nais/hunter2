@@ -3,7 +3,7 @@ name: Build and deploy hunter2
 on: [push]
 
 env:
-  image: ghcr.io/${{ github.repository }
+  image: ghcr.io/${{ github.repository }}
 
 jobs:
   build:

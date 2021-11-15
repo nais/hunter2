@@ -5,9 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nais/hunter2/pkg/fake"
-	"github.com/nais/hunter2/pkg/kubernetes"
-	"github.com/nais/hunter2/pkg/synchronizer"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
@@ -17,6 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubernetesFake "k8s.io/client-go/kubernetes/fake"
+
+	"github.com/nais/hunter2/pkg/fake"
+	"github.com/nais/hunter2/pkg/kubernetes"
+	"github.com/nais/hunter2/pkg/synchronizer"
 )
 
 func init() {
@@ -103,9 +104,10 @@ func TestSynchronizer_Sync_CreateNewSecret(t *testing.T) {
 		kubernetes.CreatedBy: kubernetes.CreatedByValue,
 	}, secret.GetLabels())
 	assert.Equal(t, map[string]string{
-		kubernetes.LastModified:   timestamp.Format(time.RFC3339),
-		kubernetes.LastModifiedBy: principalEmail,
-		kubernetes.SecretVersion:  secretVersion,
+		kubernetes.LastModified:        timestamp.Format(time.RFC3339),
+		kubernetes.LastModifiedBy:      principalEmail,
+		kubernetes.SecretVersion:       secretVersion,
+		kubernetes.StakaterReloaderKey: "true",
 	}, secret.GetAnnotations())
 }
 

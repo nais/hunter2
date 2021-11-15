@@ -8,12 +8,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const CreatedBy = "nais.io/created-by"
-const CreatedByValue = "hunter2"
+const (
+	CreatedBy      = "nais.io/created-by"
+	CreatedByValue = "hunter2"
 
-const LastModifiedBy = "hunter2.nais.io/last-modified-by"
-const LastModified = "hunter2.nais.io/last-modified"
-const SecretVersion = "hunter2.nais.io/secret-version"
+	LastModifiedBy = "hunter2.nais.io/last-modified-by"
+	LastModified   = "hunter2.nais.io/last-modified"
+	SecretVersion  = "hunter2.nais.io/secret-version"
+
+	StakaterReloaderKey = "reloader.stakater.com/match"
+)
 
 type SecretData struct {
 	Name           string
@@ -42,9 +46,10 @@ func OpaqueSecret(data SecretData) *corev1.Secret {
 				CreatedBy: CreatedByValue,
 			},
 			Annotations: map[string]string{
-				LastModified:   data.LastModified.Format(time.RFC3339),
-				LastModifiedBy: data.LastModifiedBy,
-				SecretVersion:  data.SecretVersion,
+				LastModified:        data.LastModified.Format(time.RFC3339),
+				LastModifiedBy:      data.LastModifiedBy,
+				SecretVersion:       data.SecretVersion,
+				StakaterReloaderKey: "true",
 			},
 		},
 		StringData: data.Payload,

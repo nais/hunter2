@@ -1,11 +1,13 @@
 package kubernetes_test
 
 import (
-	"github.com/nais/hunter2/pkg/kubernetes"
-	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/nais/hunter2/pkg/kubernetes"
 )
 
 var secretData = kubernetes.SecretData{
@@ -27,11 +29,14 @@ func TestOpaqueSecret(t *testing.T) {
 	assert.Equal(t, "v1", secret.TypeMeta.APIVersion)
 	assert.Equal(t, secretData.Name, secret.GetName())
 	assert.Equal(t, secretData.Namespace, secret.GetNamespace())
-	assert.Equal(t, map[string]string{kubernetes.CreatedBy: kubernetes.CreatedByValue}, secret.GetLabels())
 	assert.Equal(t, map[string]string{
-		kubernetes.LastModified:   secretData.LastModified.Format(time.RFC3339),
-		kubernetes.LastModifiedBy: secretData.LastModifiedBy,
-		kubernetes.SecretVersion:  secretData.SecretVersion,
+		kubernetes.CreatedBy: kubernetes.CreatedByValue,
+	}, secret.GetLabels())
+	assert.Equal(t, map[string]string{
+		kubernetes.LastModified:        secretData.LastModified.Format(time.RFC3339),
+		kubernetes.LastModifiedBy:      secretData.LastModifiedBy,
+		kubernetes.SecretVersion:       secretData.SecretVersion,
+		kubernetes.StakaterReloaderKey: "true",
 	}, secret.GetAnnotations())
 	assert.Equal(t, secretData.Payload, secret.StringData)
 

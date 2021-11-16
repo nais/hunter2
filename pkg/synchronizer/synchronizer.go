@@ -3,10 +3,9 @@ package synchronizer
 import (
 	"context"
 	"fmt"
+	"strconv"
+
 	"github.com/joho/godotenv"
-	"github.com/nais/hunter2/pkg/google"
-	"github.com/nais/hunter2/pkg/kubernetes"
-	"github.com/nais/hunter2/pkg/metrics"
 	log "github.com/sirupsen/logrus"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 	"google.golang.org/grpc/codes"
@@ -15,7 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubernetes2 "k8s.io/client-go/kubernetes"
-	"strconv"
+
+	"github.com/nais/hunter2/pkg/google"
+	"github.com/nais/hunter2/pkg/kubernetes"
+	"github.com/nais/hunter2/pkg/metrics"
 )
 
 const (
@@ -143,7 +145,7 @@ func (in *Synchronizer) ignoreNotFound(err error) error {
 	return fmt.Errorf("error while performing secret manager operation: %w", err)
 }
 
-func (in *Synchronizer) createOrUpdateKubernetesSecret(ctx context.Context, msg google.PubSubMessage, payload map[string]string) error {
+func (in *Synchronizer) createOrUpdateKubernetesSecret(ctx context.Context, msg google.PubSubMessage, payload map[string][]byte) error {
 	namespace, err := in.getNamespaceFromProjectID(ctx, msg.GetProjectID())
 	if err != nil {
 		return fmt.Errorf("getting namespace: %+v", err)
@@ -204,7 +206,7 @@ func (in *Synchronizer) getNamespaceFromProjectID(ctx context.Context, projectID
 	}
 }
 
-func ToSecretData(msg google.PubSubMessage, namespace string, payload map[string]string) kubernetes.SecretData {
+func ToSecretData(msg google.PubSubMessage, namespace string, payload map[string][]byte) kubernetes.SecretData {
 	return kubernetes.SecretData{
 		Name:           msg.GetSecretName(),
 		Namespace:      namespace,
@@ -215,12 +217,22 @@ func ToSecretData(msg google.PubSubMessage, namespace string, payload map[string
 	}
 }
 
-func SecretPayload(metadata *secretmanagerpb.Secret, raw []byte) (map[string]string, error) {
+func SecretPayload(metadata *secretmanagerpb.Secret, raw []byte) (map[string][]byte, error) {
 	if secretContainsEnvironmentVariables(metadata) {
-		return godotenv.Unmarshal(string(raw))
+		stringMap, err := godotenv.Unmarshal(string(raw))
+		if err != nil {
+			return nil, err
+		}
+
+		byteMap := make(map[string][]byte)
+		for key, value := range stringMap {
+			byteMap[key] = []byte(value)
+		}
+
+		return byteMap, nil
 	} else {
-		return map[string]string{
-			StaticSecretDataKey: string(raw),
+		return map[string][]byte{
+			StaticSecretDataKey: raw,
 		}, nil
 	}
 }

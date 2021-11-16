@@ -70,9 +70,9 @@ func TestToSecretData(t *testing.T) {
 func TestToSecretDataWithEnv(t *testing.T) {
 	payload, err := synchronizer.SecretPayload(metadataWithEnv, envPayload)
 	assert.NoError(t, err)
-	assert.Equal(t, map[string]string{
-		"FOO": "BAR",
-		"BAR": "BAZ",
+	assert.Equal(t, map[string][]byte{
+		"FOO": []byte("BAR"),
+		"BAR": []byte("BAZ"),
 	}, payload)
 }
 
@@ -80,11 +80,10 @@ func TestToEnvMultilineEncoded(t *testing.T) {
 	envPayload = []byte("FOO=\"one line\\ntwo line\\n\"\nBAR=BAZ")
 	payload, err := synchronizer.SecretPayload(metadataWithEnv, envPayload)
 	assert.NoError(t, err)
-	assert.Equal(t, map[string]string{
-		"FOO": "one line\ntwo line\n",
-		"BAR": "BAZ",
+	assert.Equal(t, map[string][]byte{
+		"FOO": []byte("one line\ntwo line\n"),
+		"BAR": []byte("BAZ"),
 	}, payload)
-
 }
 
 func TestSynchronizer_Sync_CreateNewSecret(t *testing.T) {

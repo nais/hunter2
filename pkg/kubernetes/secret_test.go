@@ -13,8 +13,8 @@ import (
 var secretData = kubernetes.SecretData{
 	Name:      "some-secret",
 	Namespace: "some-namespace",
-	Payload: map[string]string{
-		"some-key": "some-value",
+	Payload: map[string][]byte{
+		"some-key": []byte("some-value"),
 	},
 	LastModified:   time.Now(),
 	LastModifiedBy: "person@some-domain.test",
@@ -38,7 +38,7 @@ func TestOpaqueSecret(t *testing.T) {
 		kubernetes.SecretVersion:       secretData.SecretVersion,
 		kubernetes.StakaterReloaderKey: "true",
 	}, secret.GetAnnotations())
-	assert.Equal(t, secretData.Payload, secret.StringData)
+	assert.Equal(t, secretData.Payload, secret.Data)
 
 	secretDataUppercase := secretData
 	secretDataUppercase.Name = "Some-Name-With-UpperCase"

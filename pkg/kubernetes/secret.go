@@ -22,7 +22,7 @@ const (
 type SecretData struct {
 	Name           string
 	Namespace      string
-	Payload        map[string]string
+	Payload        map[string][]byte
 	LastModified   time.Time
 	LastModifiedBy string
 	SecretVersion  string
@@ -52,7 +52,7 @@ func OpaqueSecret(data SecretData) *corev1.Secret {
 				StakaterReloaderKey: "true",
 			},
 		},
-		StringData: data.Payload,
-		Type:       corev1.SecretTypeOpaque,
+		Data: data.Payload,
+		Type: corev1.SecretTypeOpaque,
 	}
 }

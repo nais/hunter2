@@ -1,0 +1,8 @@
+image:
+  repository: europe-north1-docker.pkg.dev/nais-io/nais/images/hunter2
+  tag: "master"
+  pullPolicy: IfNotPresent
+
+debug: true
+pubsubSubscriptionID: ""
+googleProjectID: "" #  mapped from fasit

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: hunter2
+description: Google Secret Manager -> Kubernetes Secret synchronizer
+type: application
+version: 1.0.0

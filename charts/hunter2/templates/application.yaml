@@ -26,7 +26,7 @@ spec:
     - name: HUNTER2_BIND_ADDRESS
       value: "0.0.0.0:8080"
     - name: HUNTER2_DEBUG
-      value: {{ .Values.debug }}
+      value: "{{ .Values.debug }}"
     - name: HUNTER2_GOOGLE_PROJECT_ID
       value: {{ .Values.googleProjectID }}
     - name: HUNTER2_GOOGLE_PUBSUB_SUBSCRIPTION_ID

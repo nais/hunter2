@@ -24,12 +24,12 @@ import (
 
 // Configuration options
 const (
-	KubeconfigPath             = "kubeconfig-path"
-	BindAddress                = "bind-address"
-	Debug                      = "debug"
-	GoogleProjectID            = "google-project-id"
-	GooglePubsubSubscriptionID = "google-pubsub-subscription-id"
-	ReportInterval             = "report-interval"
+	KubeconfigPath               = "kubeconfig-path"
+	BindAddress                  = "bind-address"
+	Debug                        = "debug"
+	GoogleProjectID              = "google-project-id"
+	GooglePubsubSubscriptionName = "google-pubsub-subscription-name"
+	ReportInterval               = "report-interval"
 )
 
 func init() {
@@ -40,7 +40,7 @@ func init() {
 	flag.String(BindAddress, "127.0.0.1:8080", "Bind address for application.")
 	flag.Bool(Debug, false, "enables debug logging")
 	flag.String(GoogleProjectID, "", "GCP project ID.")
-	flag.String(GooglePubsubSubscriptionID, "", "GCP subscription ID for the PubSub topic to consume from.")
+	flag.String(GooglePubsubSubscriptionName, "", "GCP subscription ID for the PubSub topic to consume from.")
 	flag.String(KubeconfigPath, "", "path to Kubernetes config file")
 	flag.Duration(ReportInterval, 5*time.Minute, "How often to collect number of Kubernetes secrets in cluster")
 
@@ -67,7 +67,7 @@ func main() {
 
 	ctx := context.Background()
 	googleProjectID := viper.GetString(GoogleProjectID)
-	googlePubsubSubscriptionID := viper.GetString(GooglePubsubSubscriptionID)
+	googlePubsubSubscriptionID := viper.GetString(GooglePubsubSubscriptionName)
 
 	pubsubClient, err := google.NewPubSubClient(ctx, googleProjectID, googlePubsubSubscriptionID)
 	if err != nil {

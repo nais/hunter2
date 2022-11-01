@@ -29,8 +29,8 @@ spec:
       value: "{{ .Values.debug }}"
     - name: HUNTER2_GOOGLE_PROJECT_ID
       value: {{ .Values.googleProjectID }}
-    - name: HUNTER2_GOOGLE_PUBSUB_SUBSCRIPTION_ID
-      value: {{ .Values.pubsubSubscriptionID  }}
+    - name: HUNTER2_GOOGLE_PUBSUB_SUBSCRIPTION_NAME
+      value: {{ .Values.pubsubSubscriptionName  }}
   accessPolicy:
     outbound:
       external:

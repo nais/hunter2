@@ -4,5 +4,5 @@ image:
   pullPolicy: IfNotPresent
 
 debug: true
-pubsubSubscriptionID: ""
+pubsubSubscriptionName: ""
 googleProjectID: "" #  mapped from fasit

@@ -67,12 +67,12 @@ type logMessage struct {
 	} `json:"resource"`
 }
 
-func NewPubSubClient(ctx context.Context, projectID, subscriptionID string) (*PubSubClient, error) {
+func NewPubSubClient(ctx context.Context, projectID, subscriptionName string) (*PubSubClient, error) {
 	client, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("creating pubsub client: %w", err)
 	}
-	sub := client.Subscription(subscriptionID)
+	sub := client.Subscription(subscriptionName)
 	return &PubSubClient{Subscription: sub}, nil
 }
 

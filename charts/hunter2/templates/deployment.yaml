@@ -1,0 +1,73 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "hunter2.labels" . | nindent 4 }}
+    team: {{ .Values.team }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "hunter2.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "hunter2.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "hunter2.fullname" . }}
+      containers:
+        - name: {{ .Chart.Name }}
+          env:
+            - name: HUNTER2_BIND_ADDRESS
+              value: "0.0.0.0:8080"
+            - name: HUNTER2_DEBUG
+              value: "{{ .Values.debug }}"
+            - name: HUNTER2_GOOGLE_PROJECT_ID
+              value: {{ .Values.googleProjectID }}
+            - name: HUNTER2_GOOGLE_PUBSUB_SUBSCRIPTION_NAME
+              value: {{ .Values.pubsubSubscriptionName  }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1069
+            runAsNonRoot: true
+            runAsUser: 1069
+            seccompProfile:
+              type: RuntimeDefault
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 20m
+              memory: 64Mi
+          volumeMounts:
+            - mountPath: /etc/ssl/certs/ca-certificates.crt
+              name: ca-bundle-pem
+              readOnly: true
+              subPath: ca-bundle.pem
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

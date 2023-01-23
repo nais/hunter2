@@ -71,3 +71,8 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+        - configMap:
+            defaultMode: 420
+            name: ca-bundle-pem
+          name: ca-bundle-pem

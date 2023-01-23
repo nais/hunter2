@@ -3,6 +3,7 @@ image:
   tag: "master"
   pullPolicy: IfNotPresent
 
+team: nais
 debug: true
 pubsubSubscriptionName: ""
 googleProjectID: "" #  mapped from fasit

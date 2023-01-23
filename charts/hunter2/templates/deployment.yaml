@@ -63,16 +63,6 @@ spec:
             requests:
               cpu: 20m
               memory: 64Mi
-          volumeMounts:
-            - mountPath: /etc/ssl/certs/ca-certificates.crt
-              name: ca-bundle-pem
-              readOnly: true
-              subPath: ca-bundle.pem
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      volumes:
-        - configMap:
-            defaultMode: 420
-            name: ca-bundle-pem
-          name: ca-bundle-pem

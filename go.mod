@@ -1,6 +1,6 @@
 module github.com/nais/hunter2
 
-go 1.17
+go 1.20
 
 require (
 	cloud.google.com/go/pubsub v1.17.1

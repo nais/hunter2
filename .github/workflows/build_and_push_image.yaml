@@ -1,5 +1,4 @@
 name: Build and deploy image
-
 on:
   push:
     branches:
@@ -7,14 +6,11 @@ on:
     paths-ignore:
       - "charts/**"
       - "*.md"
-
 env:
   REGISTRY: europe-north1-docker.pkg.dev/nais-io/nais/images
-  BUILDER_IMG: "cgr.dev/chainguard/go:1.20"
   RUNNER_IMG: "cgr.dev/chainguard/static"
   BASEIMG_IDENTITY: "https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main"
   BASEIMG_ISSUER: "https://token.actions.githubusercontent.com"
-
 jobs:
   build_and_push:
     permissions:
@@ -23,16 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@83b7061638ee4956cf7545a6f7efe594e5ad0247 # ratchet:actions/checkout@v3
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # ratchet:actions/checkout@v3
       - name: Install cosign
-        uses: sigstore/cosign-installer@9e9de2292db7abb3f51b7f4808d98f0d347a8919 # ratchet:sigstore/cosign-installer@main
+        uses: sigstore/cosign-installer@6e04d228eb30da1757ee4e1dd75a0ec73a653e06 # ratchet:sigstore/cosign-installer@main
         with:
           cosign-release: 'v2.0.0'
-      - name: Verify builder image
-        run: cosign verify --certificate-identity ${{ env.BASEIMG_IDENTITY }} --certificate-oidc-issuer ${{ env.BASEIMG_ISSUER }} ${{ env.BUILDER_IMG }}
       - name: Verify runner image
         run: cosign verify --certificate-identity ${{ env.BASEIMG_IDENTITY }} --certificate-oidc-issuer ${{ env.BASEIMG_ISSUER }} ${{ env.RUNNER_IMG }}
-      - uses: nais/build-push-sign@8b336817c5749f179373fd63a7f511bae7246f10 # ratchet:nais/build-push-sign@main
+      - uses: nais/platform-build-push-sign@fb7da39ee56c8904ed15c02705a1780cb278a65b # ratchet:nais/platform-build-push-sign@main
         id: build-push-sign
         with:
           name: hunter2

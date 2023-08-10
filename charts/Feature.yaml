@@ -1,0 +1,26 @@
+environmentKinds:
+  - tenant
+  - legacy
+values:
+  apiServerCIDR:
+    displayName: API server cidr
+    computed:
+      template: '"{{ .Env.apiserver_endpoint }}/32"'
+  debug:
+    displayName: Enable debug
+    config:
+      type: bool
+  googleProjectID:
+    computed:
+      template: '"{{ .Env.project_id }}"'
+  image.tag:
+    displayName: Image tag
+    config:
+      type: string
+  pubsubSubscriptionName:
+    displayName: PubSub subscription name
+    computed:
+      template: '"{{ .Env.pubsub_subscription_name }}"'
+    config:
+      type: string
+

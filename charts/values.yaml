@@ -4,6 +4,6 @@ image:
   pullPolicy: IfNotPresent
 
 team: nais
-debug: true
+debug: false
 pubsubSubscriptionName: ""
 googleProjectID: "" #  mapped from fasit

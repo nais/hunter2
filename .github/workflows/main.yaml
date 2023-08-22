@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3.5.3
+
       - uses: nais/platform-build-push-sign@main
         id: build-push-sign
         with:
@@ -24,6 +25,7 @@ jobs:
           google_service_account: gh-${{ env.NAME }}
           workload_identity_provider: ${{ secrets.NAIS_IO_WORKLOAD_IDENTITY_PROVIDER }}
           push: true
+
       - uses: azure/setup-helm@v3
         name: "Setup Helm"
         with:
@@ -31,8 +33,8 @@ jobs:
       - name: Build Chart
         run: |-
           sed -i "s/^version: .*/version: ${{ steps.build-push-sign.outputs.version }}/g" charts/Chart.yaml
-          cat charts/Chart.yaml
           helm package charts
+
       - name: Push Chart
         run: |-
           helm push ${{ env.NAME }}*.tgz ${{ env.FEATURE_REPOSITORY }}
@@ -47,5 +49,3 @@ jobs:
         with:
           chart: ${{ env.FEATURE_REPOSITORY }}/${{ env.NAME }}
           version: ${{ needs.build_push.outputs.version }}
-          feature_name: ${{ env.NAME }}
-

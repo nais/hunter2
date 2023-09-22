@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
@@ -32,6 +33,7 @@ type Synchronizer struct {
 	secretManagerClient   google.SecretManagerClient
 	clientset             kubernetes2.Interface
 	projectNamespaceCache map[string]string
+	lock                  sync.RWMutex
 }
 
 func NewSynchronizer(logger *log.Entry, secretManagerClient google.SecretManagerClient, clientSet kubernetes2.Interface, projectNamespaceCache map[string]string) *Synchronizer {
@@ -181,7 +183,10 @@ func (in *Synchronizer) deleteKubernetesSecret(ctx context.Context, msg google.P
 }
 
 func (in *Synchronizer) getNamespaceFromProjectID(ctx context.Context, projectID string) (string, error) {
-	if namespace, ok := in.projectNamespaceCache[projectID]; ok {
+	in.lock.RLock()
+	namespace, ok := in.projectNamespaceCache[projectID]
+	in.lock.RUnlock()
+	if ok {
 		return namespace, nil
 	}
 
@@ -194,11 +199,15 @@ func (in *Synchronizer) getNamespaceFromProjectID(ctx context.Context, projectID
 
 	for _, namespace := range namespaces.Items {
 		if projectID, ok := namespace.Annotations[ProjectIDAnnotation]; ok {
+			in.lock.Lock()
 			in.projectNamespaceCache[projectID] = namespace.Name
+			in.lock.Unlock()
 			log.Debugf("caching: %s=%s", projectID, namespace.Name)
 		}
 	}
 
+	in.lock.RLock()
+	defer in.lock.RUnlock()
 	if namespace, ok := in.projectNamespaceCache[projectID]; ok {
 		return namespace, nil
 	} else {
